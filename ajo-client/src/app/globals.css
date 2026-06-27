@@ -1,0 +1,228 @@
+@import "tailwindcss";
+
+/* Enable class-based dark mode */
+@variant dark (&:where(.dark, .dark *));
+
+:root {
+  /* ---------- Brand ---------- */
+  --primary: #0F766E;
+  --primary-hover: #0E6862;
+  --primary-dark: #115E59;
+  --primary-soft: #CCFBF1;     /* tint for badges, highlighted rows */
+  --primary-foreground: #F8FAFC;
+
+  /* Our amber brand color. Named --brand-accent (not --accent) because
+     shadcn/ui components expect --accent to mean something different:
+     a neutral hover/highlight color used across dozens of primitives
+     (dropdown items, tabs, command palette, etc). Keeping the two
+     separate means `shadcn add <component>` never needs hand-patching. */
+  --brand-accent: #F59E0B;
+  --brand-accent-hover: #D97F06;
+  --brand-accent-soft: #FEF3C7;
+  --brand-accent-foreground: #1C1917;   /* dark text on amber, for contrast */
+
+  /* ---------- Surface & text ---------- */
+  --background: #F8FAFC;
+  --bg-card: #FFFFFF;
+  --bg-muted: #F1F5F9;
+
+  --foreground: #0F172A;       /* primary text */
+  --text-secondary: #475569;
+  --text-muted: #94A3B8;
+
+  --border: #E2E8F0;
+  --border-strong: #CBD5E1;
+
+  --accent-glow: rgba(245, 158, 11, 0.25); /* used by theme-toggle box-shadow */
+  --accent-blue: #2563EB;      /* used by theme-toggle active state */
+
+  /* ---------- shadcn/ui required tokens ---------- */
+  /* shadcn's own "accent": a neutral hover/highlight surface, distinct
+     from our amber --brand-accent above. Derived from our slate palette
+     so it sits quietly behind content instead of competing with it. */
+  --accent: #F1F5F9;
+  --accent-foreground: #0F172A;
+
+  --secondary: #F1F5F9;
+  --secondary-foreground: #0F172A;
+
+  --muted: #F1F5F9;
+  --muted-foreground: #64748B;
+
+  /* Same red as --status-overdue below, one source of truth: a
+     "destructive" button and an "overdue" badge should read as the
+     same semantic danger color, not two competing reds. */
+  --destructive: #DC2626;
+  --destructive-foreground: #F8FAFC;
+
+  --card: #FFFFFF;
+  --card-foreground: #0F172A;
+  --popover: #FFFFFF;
+  --popover-foreground: #0F172A;
+
+  --input: #CBD5E1;            /* form input borders, slightly stronger than --border */
+  --ring: #0F766E;             /* focus ring = brand primary */
+
+  /* ---------- Ajo status colors ---------- */
+  /* Contributed / paid this cycle */
+  --status-paid: #16A34A;
+  --status-paid-bg: #DCFCE7;
+  --status-paid-text: #166534;
+
+  /* Pending / contribution due soon (reuses brand accent intentionally) */
+  --status-pending: #F59E0B;
+  --status-pending-bg: #FEF3C7;
+  --status-pending-text: #92400E;
+
+  /* This member's turn to receive the payout */
+  --status-turn: #0F766E;
+  --status-turn-bg: #CCFBF1;
+  --status-turn-text: #115E59;
+
+  /* Overdue / missed contribution */
+  --status-overdue: #DC2626;
+  --status-overdue-bg: #FEE2E2;
+  --status-overdue-text: #991B1B;
+
+  /* ---------- Radius ---------- */
+  --radius-sm: 8px;
+  --radius-md: 12px;
+  --radius-lg: 20px;
+  --radius-xl: 28px;
+}
+
+.dark {
+  --background: #0A0E14;
+  --bg-card: #131820;
+  --bg-muted: #1A2029;
+
+  --foreground: #F1F5F9;
+  --text-secondary: #94A3B8;
+  --text-muted: #64748B;
+
+  --border: #232A35;
+  --border-strong: #2E3744;
+
+  --primary: #14B8A6;
+  --primary-hover: #2DD4BF;
+  --primary-soft: #0F2E2B;
+  --primary-foreground: #04120F;
+
+  --brand-accent: #FBBF24;
+  --brand-accent-hover: #FCD34D;
+  --brand-accent-soft: #2E2410;
+  --brand-accent-foreground: #1C1917;
+
+  --accent-glow: rgba(251, 191, 36, 0.18);
+  --accent-blue: #60A5FA;
+
+  /* shadcn's neutral accent/secondary/muted, re-tuned for dark surfaces
+     so hover states read as a lighter step up from --bg-card, not a flat gray */
+  --accent: #1A2029;
+  --accent-foreground: #F1F5F9;
+
+  --secondary: #1A2029;
+  --secondary-foreground: #F1F5F9;
+
+  --muted: #1A2029;
+  --muted-foreground: #94A3B8;
+
+  --destructive: #F87171;
+  --destructive-foreground: #1A0707;
+
+  --card: #131820;
+  --card-foreground: #F1F5F9;
+  --popover: #131820;
+  --popover-foreground: #F1F5F9;
+
+  --input: #2E3744;
+  --ring: #14B8A6;
+
+  /* Status colors re-tuned so tints don't muddy/glow on dark surfaces */
+  --status-paid: #4ADE80;
+  --status-paid-bg: #11291B;
+  --status-paid-text: #86EFAC;
+
+  --status-pending: #FBBF24;
+  --status-pending-bg: #2E2410;
+  --status-pending-text: #FCD34D;
+
+  --status-turn: #2DD4BF;
+  --status-turn-bg: #0F2E2B;
+  --status-turn-text: #5EEAD4;
+
+  --status-overdue: #F87171;
+  --status-overdue-bg: #2E1414;
+  --status-overdue-text: #FCA5A5;
+}
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-bg-card: var(--bg-card);
+  --color-bg-muted: var(--bg-muted);
+
+  --color-primary: var(--primary);
+  --color-primary-hover: var(--primary-hover);
+  --color-primary-soft: var(--primary-soft);
+  --color-primary-foreground: var(--primary-foreground);
+
+  --color-brand-accent: var(--brand-accent);
+  --color-brand-accent-hover: var(--brand-accent-hover);
+  --color-brand-accent-soft: var(--brand-accent-soft);
+  --color-brand-accent-foreground: var(--brand-accent-foreground);
+
+  --color-text-secondary: var(--text-secondary);
+  --color-text-muted: var(--text-muted);
+
+  --color-border: var(--border);
+  --color-border-strong: var(--border-strong);
+
+  /* ---------- shadcn/ui required tokens ---------- */
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+
+  --color-destructive: var(--destructive);
+  --color-destructive-foreground: var(--destructive-foreground);
+
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+
+  --radius: var(--radius-md);
+
+  --color-status-paid: var(--status-paid);
+  --color-status-paid-bg: var(--status-paid-bg);
+  --color-status-paid-text: var(--status-paid-text);
+
+  --color-status-pending: var(--status-pending);
+  --color-status-pending-bg: var(--status-pending-bg);
+  --color-status-pending-text: var(--status-pending-text);
+
+  --color-status-turn: var(--status-turn);
+  --color-status-turn-bg: var(--status-turn-bg);
+  --color-status-turn-text: var(--status-turn-text);
+
+  --color-status-overdue: var(--status-overdue);
+  --color-status-overdue-bg: var(--status-overdue-bg);
+  --color-status-overdue-text: var(--status-overdue-text);
+
+  --font-sans: var(--font-inter);
+  --font-mono: var(--font-geist-mono);
+}
+
+body {
+  background: var(--background);
+  color: var(--foreground);
+  font-family: var(--font-sans), Arial, Helvetica, sans-serif;
+}
