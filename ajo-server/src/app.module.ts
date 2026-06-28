@@ -2,6 +2,7 @@ import { Module } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
 import { PrismaModule } from './prisma/prisma.module';
 import { NombaModule } from './nomba/nomba.module';
+import { AuthModule } from './auth/auth.module';
 import { configFactory, validationSchema } from './config/app.config';
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
@@ -16,9 +17,13 @@ import { AppService } from './app.service';
     }),
     PrismaModule,
     NombaModule,
-    // AuthModule,
+    AuthModule,
     // WalletModule,
     // GroupsModule,
+    // ContributionsModule,
+    // PayoutsModule,
+    // NotificationsModule,
+    // ChatModule,
   ],
   controllers: [AppController],
   providers: [AppService],

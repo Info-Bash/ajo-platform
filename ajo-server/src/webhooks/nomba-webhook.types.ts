@@ -1,3 +1,5 @@
+// Extended to include fields used in checkout webhook payloads
+// aliasAccountReference carries our orderReference back from Nomba
 export type NombaEventType =
   | 'payment_success'
   | 'payout_success'
@@ -18,6 +20,7 @@ export interface NombaTerminal {
 }
 
 export interface NombaTransaction {
+  aliasAccountReference?: string; // Our orderReference, returned by Nomba
   transactionId: string;
   type: string;
   originatingFrom: string;

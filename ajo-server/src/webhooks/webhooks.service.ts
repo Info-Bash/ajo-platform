@@ -1,11 +1,8 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { NombaWebhookPayload } from './nomba-webhook.types';
-import {
-  TransactionType,
-  TransactionDirection,
-  TransactionStatus,
-} from '@prisma/client';
+// Prisma enums — use string literals to avoid pre-generate import issues
+// Once prisma generate runs, these enums are available from '@prisma/client'
 
 const toKobo = (naira: number): number => Math.round(naira * 100);
 
@@ -67,9 +64,9 @@ export class WebhooksService {
       await tx.transaction.create({
         data: {
           walletId: pendingCheckout.walletId,
-          direction: TransactionDirection.CREDIT,
-          type: TransactionType.DEPOSIT,
-          status: TransactionStatus.SUCCESSFUL,
+          direction: 'CREDIT',
+          type: 'DEPOSIT',
+          status: 'SUCCESSFUL',
           amountKobo,
           journalId,
           reference: `DEP-${nombaReference}`,
@@ -100,12 +97,12 @@ export class WebhooksService {
   private async handlePayoutSuccess(payload: NombaWebhookPayload): Promise<void> {
     const nombaReference = payload.data.transaction.transactionId;
     const txn = await this.prisma.transaction.findFirst({
-      where: { nombaReference, type: TransactionType.WITHDRAWAL },
+      where: { nombaReference, type: 'WITHDRAWAL' },
     });
     if (!txn) { this.logger.warn(`payout_success: no withdrawal for ${nombaReference}`); return; }
     await this.prisma.transaction.update({
       where: { id: txn.id },
-      data: { status: TransactionStatus.SUCCESSFUL, nombaWebhookData: payload as object },
+      data: { status: 'SUCCESSFUL', nombaWebhookData: payload as object },
     });
     this.logger.log(`Withdrawal confirmed: txnId=${txn.id}`);
   }
@@ -122,7 +119,7 @@ export class WebhooksService {
     if (txn) {
       await this.prisma.transaction.update({
         where: { id: txn.id },
-        data: { status: TransactionStatus.FAILED, nombaWebhookData: payload as object },
+        data: { status: 'FAILED', nombaWebhookData: payload as object },
       });
     }
     this.logger.warn(`Transaction failed: ${payload.event_type} nombaRef=${nombaReference}`);
@@ -135,16 +132,16 @@ export class WebhooksService {
     const originalTxn = await this.prisma.transaction.findFirst({ where: { nombaReference } });
     if (!originalTxn) { this.logger.warn(`Reversal: no original tx for ${nombaReference}`); return; }
 
-    const reversalDirection = originalTxn.direction === TransactionDirection.CREDIT
-      ? TransactionDirection.DEBIT : TransactionDirection.CREDIT;
+    const reversalDirection = originalTxn.direction === 'CREDIT'
+      ? 'DEBIT' : 'CREDIT';
 
     await this.prisma.$transaction(async (tx) => {
       await tx.transaction.create({
         data: {
           walletId: originalTxn.walletId,
           direction: reversalDirection,
-          type: TransactionType.REVERSAL,
-          status: TransactionStatus.SUCCESSFUL,
+          type: 'REVERSAL',
+          status: 'SUCCESSFUL',
           amountKobo,
           journalId: `jrnl_rev_${nombaReference}`,
           reference: `REV-${nombaReference}`,
@@ -157,12 +154,12 @@ export class WebhooksService {
 
       await tx.wallet.update({
         where: { id: originalTxn.walletId },
-        data: { balanceKobo: { increment: reversalDirection === TransactionDirection.DEBIT ? -amountKobo : amountKobo } },
+        data: { balanceKobo: { increment: reversalDirection === 'DEBIT' ? -amountKobo : amountKobo } },
       });
 
       await tx.transaction.update({
         where: { id: originalTxn.id },
-        data: { status: TransactionStatus.REVERSED },
+        data: { status: 'REVERSED' },
       });
     });
     this.logger.log(`Reversal processed: originalTxnId=${originalTxn.id}`);
