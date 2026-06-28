@@ -4,6 +4,7 @@ import { PrismaModule } from './prisma/prisma.module';
 import { configFactory, validationSchema } from './config/app.config';
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
+import { WebhooksModule } from './webhooks/webhooks.module';
 
 @Module({
   imports: [
@@ -17,6 +18,7 @@ import { AppService } from './app.service';
       },
     }),
     PrismaModule,
+    WebhooksModule,
     // Feature modules added here as we build them:
     // AuthModule,
     // WalletModule,
