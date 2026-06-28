@@ -1,10 +1,10 @@
 import { Module } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
 import { PrismaModule } from './prisma/prisma.module';
+import { NombaModule } from './nomba/nomba.module';
 import { configFactory, validationSchema } from './config/app.config';
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
-import { WebhooksModule } from './webhooks/webhooks.module';
 
 @Module({
   imports: [
@@ -12,21 +12,13 @@ import { WebhooksModule } from './webhooks/webhooks.module';
       isGlobal: true,
       load: [configFactory],
       validationSchema,
-      validationOptions: {
-        allowUnknown: true,
-        abortEarly: false,
-      },
+      validationOptions: { allowUnknown: true, abortEarly: false },
     }),
     PrismaModule,
-    WebhooksModule,
-    // Feature modules added here as we build them:
+    NombaModule,
     // AuthModule,
     // WalletModule,
     // GroupsModule,
-    // ContributionsModule,
-    // PayoutsModule,
-    // NotificationsModule,
-    // ChatModule,
   ],
   controllers: [AppController],
   providers: [AppService],

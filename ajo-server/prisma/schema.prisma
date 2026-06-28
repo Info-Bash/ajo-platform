@@ -33,12 +33,12 @@ enum TransactionDirection {
 }
 
 enum TransactionType {
-  DEPOSIT // Nomba → user wallet (CREDIT on user wallet)
-  WITHDRAWAL // user wallet → Nomba payout (DEBIT on user wallet)
-  TRANSFER // user wallet → user wallet (internal)
-  CONTRIBUTION // user wallet → group wallet (ajo payment)
-  PAYOUT // group wallet → user wallet (ajo payout release)
-  REVERSAL // corrects a failed transaction
+  DEPOSIT         // Nomba → user wallet (CREDIT on user wallet)
+  WITHDRAWAL      // user wallet → Nomba payout (DEBIT on user wallet)
+  TRANSFER        // user wallet → user wallet (internal)
+  CONTRIBUTION    // user wallet → group wallet (ajo payment)
+  PAYOUT          // group wallet → user wallet (ajo payout release)
+  REVERSAL        // corrects a failed transaction
 }
 
 enum TransactionStatus {
@@ -60,18 +60,18 @@ enum GroupVisibility {
 }
 
 enum GroupStatus {
-  PENDING // created, not yet full / not yet started
-  ACTIVE // rotation is running
-  COMPLETED // all rounds finished
+  PENDING    // created, not yet full / not yet started
+  ACTIVE     // rotation is running
+  COMPLETED  // all rounds finished
   CANCELLED
 }
 
 enum MemberStatus {
   ACTIVE
-  LATE // missed payment, within grace period
-  DEFAULTED // grace period expired, still unpaid
-  EXITED // voluntarily left
-  INACTIVE // removed by admin or system after default
+  LATE       // missed payment, within grace period
+  DEFAULTED  // grace period expired, still unpaid
+  EXITED     // voluntarily left
+  INACTIVE   // removed by admin or system after default
 }
 
 enum MemberRole {
@@ -159,7 +159,7 @@ model User {
   beneficiaries      Beneficiary[]
 
   // Transaction relations — a user is involved as sender or receiver
-  transactions Transaction[] @relation("UserTransactions")
+  transactions           Transaction[] @relation("UserTransactions")
 
   friendshipsInitiated Friendship[] @relation("FriendshipInitiator")
   friendshipsReceived  Friendship[] @relation("FriendshipReceiver")
@@ -189,8 +189,8 @@ model VerificationToken {
 // ─── Wallet ───────────────────────────────────────────────────────────────────
 
 model Wallet {
-  id      String  @id @default(cuid())
-  userId  String? @unique // null = group wallet
+  id     String  @id @default(cuid())
+  userId String? @unique // null = group wallet
   groupId String? @unique // null = user wallet
 
   // All monetary values in KOBO (smallest NGN unit).
@@ -201,17 +201,11 @@ model Wallet {
   // The source of truth is always the transaction ledger.
   balanceKobo Int @default(0)
 
-  // Nomba virtual account — assigned by Nomba on wallet creation.
-  // Users fund their wallet by transferring to this account number.
-  nombaVirtualAccountNumber String? @unique
-  nombaVirtualAccountBank   String? // e.g. "Wema Bank"
-  nombaAccountReference     String? @unique // Nomba's internal account ID
-
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  user  User?     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  group AjoGroup? @relation(fields: [groupId], references: [id], onDelete: Cascade)
+  user   User?     @relation(fields: [userId],  references: [id], onDelete: Cascade)
+  group  AjoGroup? @relation(fields: [groupId], references: [id], onDelete: Cascade)
 
   transactions Transaction[]
   linkedCards  LinkedCard[]
@@ -222,19 +216,19 @@ model Wallet {
 // ─── Linked Cards ─────────────────────────────────────────────────────────────
 
 model LinkedCard {
-  id       String @id @default(cuid())
-  walletId String
+  id        String @id @default(cuid())
+  walletId  String
 
   // Store display info only — never full card numbers (PCI compliance)
-  last4          String
-  cardType       String // "visa" | "mastercard" | "verve"
-  expiryMonth    Int
-  expiryYear     Int
+  last4       String
+  cardType    String  // "visa" | "mastercard" | "verve"
+  expiryMonth Int
+  expiryYear  Int
   cardholderName String?
-  isDefault      Boolean @default(false)
+  isDefault   Boolean @default(false)
 
   // Nomba card token — used to charge the card without re-entering details
-  nombaCardToken     String  @unique
+  nombaCardToken    String  @unique
   nombaCardReference String? // Nomba's card ID
 
   createdAt DateTime @default(now())
@@ -261,11 +255,11 @@ model LinkedCard {
 // Invariant: for every journalId, SUM(DEBIT amountKobo) == SUM(CREDIT amountKobo)
 
 model Transaction {
-  id         String               @id @default(cuid())
-  walletId   String // Which wallet this entry appears on
-  direction  TransactionDirection // DEBIT (money out) or CREDIT (money in)
-  type       TransactionType
-  status     TransactionStatus    @default(PENDING)
+  id        String               @id @default(cuid())
+  walletId  String               // Which wallet this entry appears on
+  direction TransactionDirection // DEBIT (money out) or CREDIT (money in)
+  type      TransactionType
+  status    TransactionStatus    @default(PENDING)
   amountKobo Int
 
   // Links the two sides of a double-entry pair.
@@ -273,12 +267,12 @@ model Transaction {
   journalId String
 
   // Human-readable reference shown in transaction history (e.g. "AJO-TXN-20240601-XXXXX")
-  reference   String @unique @default(cuid())
+  reference   String  @unique @default(cuid())
   description String
 
   // Counterparty info for display (denormalised for query performance)
-  counterpartyUserId String? // The other user in a transfer
-  counterpartyName   String? // Display name of counterparty
+  counterpartyUserId  String? // The other user in a transfer
+  counterpartyName    String? // Display name of counterparty
 
   // Group context — set for CONTRIBUTION and PAYOUT types
   groupId        String?
@@ -289,11 +283,12 @@ model Transaction {
   // Nomba payment rail fields
   // Set on the CREDIT side of a DEPOSIT (Nomba → internal wallet)
   // Set on the DEBIT side of a WITHDRAWAL (internal wallet → Nomba payout)
-  nombaReference   String? // Nomba's transaction ID
-  nombaStatus      String? // Nomba's raw status string
-  nombaWebhookData Json? // Full Nomba webhook payload for audit/reconciliation
+  nombaOrderReference String? // Nomba's orderReference from checkout (links webhook to pending tx)
+  nombaReference    String? // Nomba's transaction ID from webhook
+  nombaStatus       String? // Nomba's raw status string
+  nombaWebhookData  Json?   // Full Nomba webhook payload for audit/reconciliation
   // For card payments: which card was used
-  linkedCardId     String?
+  linkedCardId      String?
 
   // For REVERSAL type: points to the original transaction being reversed
   reversalOfId String?
@@ -301,16 +296,16 @@ model Transaction {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  wallet           Wallet        @relation(fields: [walletId], references: [id])
-  counterpartyUser User?         @relation("UserTransactions", fields: [counterpartyUserId], references: [id])
-  group            AjoGroup?     @relation(fields: [groupId], references: [id])
-  round            Round?        @relation(fields: [roundId], references: [id])
-  linkedCard       LinkedCard?   @relation(fields: [linkedCardId], references: [id])
-  reversalOf       Transaction?  @relation("ReversalOf", fields: [reversalOfId], references: [id])
-  reversals        Transaction[] @relation("ReversalOf")
+  wallet       Wallet        @relation(fields: [walletId],  references: [id])
+  counterpartyUser User? @relation("UserTransactions", fields: [counterpartyUserId], references: [id])
+  group        AjoGroup?     @relation(fields: [groupId],    references: [id])
+  round        Round?        @relation(fields: [roundId],    references: [id])
+  linkedCard   LinkedCard?   @relation(fields: [linkedCardId], references: [id])
+  reversalOf   Transaction?  @relation("ReversalOf", fields: [reversalOfId], references: [id])
+  reversals    Transaction[]  @relation("ReversalOf")
 
   @@index([walletId, createdAt])
-  @@index([journalId]) // Always fetch both sides of a journal entry together
+  @@index([journalId])     // Always fetch both sides of a journal entry together
   @@index([reference])
   @@index([groupId])
   @@index([type, status])
@@ -321,12 +316,12 @@ model Transaction {
 // ─── Beneficiaries ────────────────────────────────────────────────────────────
 
 model Beneficiary {
-  id             String  @id @default(cuid())
-  userId         String // Owner of this beneficiary record
-  name           String
-  accountNumber  String
-  bankName       String
-  bankCode       String?
+  id            String  @id @default(cuid())
+  userId        String  // Owner of this beneficiary record
+  name          String
+  accountNumber String
+  bankName      String
+  bankCode      String?
   // If recipient is an internal Ajo user
   internalUserId String?
   avatarUrl      String?
@@ -342,7 +337,7 @@ model Beneficiary {
 // ─── Ajo Groups ───────────────────────────────────────────────────────────────
 
 model AjoGroup {
-  id          String  @id @default(cuid())
+  id          String @id @default(cuid())
   creatorId   String
   name        String
   description String?
@@ -367,10 +362,10 @@ model AjoGroup {
   // 1-indexed, incremented when a round completes. 0 = not yet started.
   currentRound Int @default(0)
 
-  activatedAt DateTime?
-  completedAt DateTime?
-  createdAt   DateTime  @default(now())
-  updatedAt   DateTime  @updatedAt
+  activatedAt  DateTime?
+  completedAt  DateTime?
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
 
   members       GroupMember[]
   rounds        Round[]
@@ -397,7 +392,7 @@ model GroupMember {
   // It NEVER changes, even if members exit or default (spec section 16).
   // Inactive members are simply skipped in the payout sequence.
   payoutOrder Int
-  payoutRound Int // round number in which this member receives the payout
+  payoutRound Int  // round number in which this member receives the payout
 
   payoutReceivedAt DateTime? // Set once payout is released to this member
 
@@ -405,11 +400,11 @@ model GroupMember {
   totalPaid   Int @default(0)
   totalMissed Int @default(0)
 
-  joinedAt DateTime  @default(now())
-  exitedAt DateTime?
+  joinedAt  DateTime  @default(now())
+  exitedAt  DateTime?
 
   group         AjoGroup       @relation(fields: [groupId], references: [id], onDelete: Cascade)
-  user          User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user          User           @relation(fields: [userId],  references: [id], onDelete: Cascade)
   contributions Contribution[]
   payouts       Payout[]
 
@@ -425,7 +420,7 @@ model GroupMember {
 model Round {
   id          String      @id @default(cuid())
   groupId     String
-  roundNumber Int // 1-indexed
+  roundNumber Int         // 1-indexed
   status      RoundStatus @default(UPCOMING)
 
   // Which GroupMember receives the payout for this round
@@ -456,18 +451,18 @@ model Contribution {
   roundId       String
   groupMemberId String
   status        ContributionStatus @default(PENDING)
-  amountKobo    Int // = group.memberShareKobo
+  amountKobo    Int                // = group.memberShareKobo
   dueDate       DateTime
 
-  paidAt    DateTime?
+  paidAt        DateTime?
   // journalId of the two Transaction records created when this was paid
   // Allows full audit trail: find both sides of the ledger entry for this contribution
-  journalId String?
+  journalId     String?
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  round       Round       @relation(fields: [roundId], references: [id], onDelete: Cascade)
+  round       Round       @relation(fields: [roundId],       references: [id], onDelete: Cascade)
   groupMember GroupMember @relation(fields: [groupMemberId], references: [id], onDelete: Cascade)
 
   @@unique([roundId, groupMemberId])
@@ -483,9 +478,9 @@ model Contribution {
 model Payout {
   id            String       @id @default(cuid())
   roundId       String
-  groupMemberId String // The GroupMember receiving this payout
+  groupMemberId String       // The GroupMember receiving this payout
   status        PayoutStatus @default(PENDING)
-  amountKobo    Int // = group.contributionAmountKobo
+  amountKobo    Int          // = group.contributionAmountKobo
 
   releasedAt DateTime?
   // journalId of the two Transaction records created when payout was released
@@ -497,7 +492,7 @@ model Payout {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  round       Round       @relation(fields: [roundId], references: [id], onDelete: Cascade)
+  round       Round       @relation(fields: [roundId],       references: [id], onDelete: Cascade)
   groupMember GroupMember @relation(fields: [groupMemberId], references: [id], onDelete: Cascade)
 
   @@index([roundId])
@@ -520,7 +515,7 @@ model Notification {
 
   createdAt DateTime @default(now())
 
-  user  User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user  User      @relation(fields: [userId],  references: [id], onDelete: Cascade)
   group AjoGroup? @relation(fields: [groupId], references: [id], onDelete: SetNull)
 
   @@index([userId, read])
@@ -533,13 +528,13 @@ model Notification {
 model ChatMessage {
   id       String      @id @default(cuid())
   groupId  String
-  senderId String? // null for SYSTEM messages
+  senderId String?     // null for SYSTEM messages
   type     MessageType @default(USER)
   content  String
 
   createdAt DateTime @default(now())
 
-  group  AjoGroup @relation(fields: [groupId], references: [id], onDelete: Cascade)
+  group  AjoGroup @relation(fields: [groupId],  references: [id], onDelete: Cascade)
   sender User?    @relation(fields: [senderId], references: [id], onDelete: SetNull)
 
   @@index([groupId, createdAt])
@@ -558,10 +553,34 @@ model Friendship {
   updatedAt DateTime @updatedAt
 
   initiator User @relation("FriendshipInitiator", fields: [initiatorId], references: [id], onDelete: Cascade)
-  receiver  User @relation("FriendshipReceiver", fields: [receiverId], references: [id], onDelete: Cascade)
+  receiver  User @relation("FriendshipReceiver",  fields: [receiverId],  references: [id], onDelete: Cascade)
 
   @@unique([initiatorId, receiverId])
   @@index([initiatorId])
   @@index([receiverId])
   @@map("friendships")
+}
+
+// ─── Pending Checkouts ────────────────────────────────────────────────────────
+// Tracks in-flight Nomba checkout orders so we can match incoming webhooks
+// back to the correct wallet and amount. Created when user initiates funding,
+// consumed (deleted) when the webhook fires or the order expires.
+
+model PendingCheckout {
+  id              String   @id @default(cuid())
+  walletId        String
+  userId          String
+  // orderReference we sent to Nomba — used to match the webhook payload
+  orderReference  String   @unique
+  // Amount in kobo that the user is trying to fund
+  amountKobo      Int
+  // The checkout link returned by Nomba — sent to frontend for redirect
+  checkoutLink    String
+  // Expires after a reasonable window (e.g. 30 minutes)
+  expiresAt       DateTime
+  createdAt       DateTime @default(now())
+
+  @@index([orderReference])
+  @@index([walletId])
+  @@map("pending_checkouts")
 }
