@@ -1,29 +1,36 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import * as nodemailer from 'nodemailer';
+import type { Options as SMTPTransportOptions } from 'nodemailer/lib/smtp-transport';
 import { AppConfig } from '../config/app.config';
 
 @Injectable()
 export class MailService {
   private readonly logger = new Logger(MailService.name);
-  private transporter: nodemailer.Transporter;
+  private transporter: nodemailer.Transporter<SMTPTransportOptions>;
 
   constructor(private readonly config: ConfigService<AppConfig>) {
     const mail = this.config.get('mail', { infer: true })!;
 
-    this.transporter = nodemailer.createTransport({
+    const transportOptions: SMTPTransportOptions & { family?: number } = {
       host: mail.host,
       port: mail.port,
-      secure: false, // Brevo uses STARTTLS on port 587
+      secure: mail.port === 465,
+      requireTLS: mail.port !== 465,
       // Force IPv4. Render and many container hosts don't have outbound
       // IPv6 — without this, Node may resolve smtp-relay.brevo.com to ::1
       // / an AAAA record and fail with ECONNREFUSED ::1:587.
       family: 4,
+      connectionTimeout: 10000,
+      greetingTimeout: 10000,
+      socketTimeout: 15000,
       auth: {
         user: mail.user,
         pass: mail.pass,
       },
-    });
+    };
+
+    this.transporter = nodemailer.createTransport(transportOptions);
   }
 
   // ─── OTP Verification Email ──────────────────────────────────────────────
