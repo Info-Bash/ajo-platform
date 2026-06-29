@@ -8,7 +8,7 @@
  */
 
 const API_BASE_URL =
-  process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:3001/api"
+  process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:3000/api/v1"
 
 const TOKEN_KEY = "ajo_access_token"
 
@@ -19,10 +19,17 @@ export function getToken(): string | null {
 
 export function setToken(token: string): void {
   localStorage.setItem(TOKEN_KEY, token)
+  // Also write a cookie so Next.js middleware can read it for route protection.
+  // Middleware runs on the server and can't access localStorage.
+  // Secure + SameSite=Lax — not HttpOnly so JS can clear it on logout.
+  const maxAge = 60 * 60 * 24 * 7 // 7 days, matches JWT expiry
+  document.cookie = `${TOKEN_KEY}=${token}; path=/; max-age=${maxAge}; SameSite=Lax${location.protocol === 'https:' ? '; Secure' : ''}`
 }
 
 export function clearToken(): void {
   localStorage.removeItem(TOKEN_KEY)
+  // Clear the cookie too
+  document.cookie = `${TOKEN_KEY}=; path=/; max-age=0`
 }
 
 export class ApiError extends Error {

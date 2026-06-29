@@ -2,7 +2,6 @@
 
 import * as React from "react"
 import Link from "next/link"
-import { useRouter } from "next/navigation"
 import { Controller, useForm } from "react-hook-form"
 import { zodResolver } from "@hookform/resolvers/zod"
 
@@ -20,10 +19,11 @@ import {
 import { AuthLayout } from "@/components/auth/auth-layout"
 import { GoogleIcon } from "@/components/auth/google-icon"
 import { registerSchema, type RegisterValues } from "@/lib/auth-schemas"
+import { useRegister, useGoogleAuth } from "@/hooks/use-auth-mutations"
 
 export default function RegisterPage() {
-  const router = useRouter()
-  const [isSubmitting, setIsSubmitting] = React.useState(false)
+  const register = useRegister()
+  const googleAuth = useGoogleAuth()
 
   const { control, handleSubmit } = useForm<RegisterValues>({
     resolver: zodResolver(registerSchema),
@@ -37,19 +37,39 @@ export default function RegisterPage() {
   })
 
   async function onSubmit(values: RegisterValues) {
-    setIsSubmitting(true)
-    try {
-      // TODO: wire up to NestJS auth endpoint
-      console.log("register", values)
-      router.push(`/verify-email?email=${encodeURIComponent(values.email)}`)
-    } finally {
-      setIsSubmitting(false)
-    }
+    register.mutate({
+      fullName: values.fullName,
+      email: values.email,
+      phone: values.phone,
+      password: values.password,
+    })
   }
 
-  function onGoogleAuth() {
-    // TODO: wire up Google OAuth flow
-    console.log("google auth")
+  async function onGoogleAuth() {
+    try {
+      const { google } = window as unknown as {
+        google: {
+          accounts: {
+            id: {
+              initialize: (config: object) => void
+              prompt: () => void
+            }
+          }
+        }
+      }
+      google.accounts.id.initialize({
+        client_id: process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID!,
+        callback: (response: { credential: string }) => {
+          googleAuth.mutate(
+            { idToken: response.credential },
+            { onError: (err) => alert(err.message) }
+          )
+        },
+      })
+      google.accounts.id.prompt()
+    } catch {
+      alert("Google sign-up failed. Please try again.")
+    }
   }
 
   return (
@@ -63,9 +83,10 @@ export default function RegisterPage() {
           variant="outline"
           className="w-full"
           onClick={onGoogleAuth}
+          disabled={googleAuth.isPending}
         >
           <GoogleIcon />
-          Sign up with Google
+          {googleAuth.isPending ? "Connecting..." : "Sign up with Google"}
         </Button>
 
         <FieldSeparator>or</FieldSeparator>
@@ -81,7 +102,7 @@ export default function RegisterPage() {
                   <Input
                     {...field}
                     id={field.name}
-                    placeholder="Abubakar Bashir"
+                    placeholder="Ada Obi"
                     autoComplete="name"
                     aria-invalid={fieldState.invalid}
                   />
@@ -151,7 +172,7 @@ export default function RegisterPage() {
                     <FieldError errors={[fieldState.error]} />
                   ) : (
                     <FieldDescription>
-                      At least 8 characters, with one uppercase letter and one number
+                      At least 8 characters, one uppercase letter and one number
                     </FieldDescription>
                   )}
                 </Field>
@@ -178,8 +199,16 @@ export default function RegisterPage() {
               )}
             />
 
-            <Button type="submit" className="w-full" disabled={isSubmitting}>
-              {isSubmitting ? "Creating account..." : "Create account"}
+            {register.isError && (
+              <p className="text-sm text-destructive">{register.error.message}</p>
+            )}
+
+            <Button
+              type="submit"
+              className="w-full"
+              disabled={register.isPending}
+            >
+              {register.isPending ? "Creating account..." : "Create account"}
             </Button>
           </FieldGroup>
         </form>
@@ -187,7 +216,10 @@ export default function RegisterPage() {
 
       <p className="mt-6 text-center text-sm text-muted-foreground">
         Already have an account?{" "}
-        <Link href="/login" className="font-medium text-primary hover:underline">
+        <Link
+          href="/login"
+          className="font-medium text-primary hover:underline"
+        >
           Log in
         </Link>
       </p>

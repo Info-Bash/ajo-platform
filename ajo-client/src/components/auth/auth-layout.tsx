@@ -14,7 +14,7 @@ function AuthLayout({ title, description, children }: AuthLayoutProps) {
   return (
     <div className="flex min-h-screen w-full">
       {/* Marketing panel — hidden on mobile, ~40% width on desktop */}
-      <div className="relative hidden w-full flex-col justify-between overflow-hidden bg-[linear-gradient(135deg,var(--primary-dark)_0%,var(--primary)_55%,var(--brand-accent)_140%)] p-12 text-primary-foreground lg:flex lg:w-2/5">
+      <div className="relative hidden w-full flex-col justify-between overflow-hidden bg-[linear-gradient(135deg,var(--primary-dark)_0%,var(--primary)_55%,var(--brand-accent)_140%)] p-12 text-primary-foreground lg:flex lg:w-3/6">
         <Link href="/" className="text-xl font-semibold">
           Ajo
         </Link>

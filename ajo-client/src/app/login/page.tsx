@@ -7,7 +7,6 @@ import { zodResolver } from "@hookform/resolvers/zod"
 
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
-import { PasswordInput } from "@/components/auth/password-input"
 import {
   Field,
   FieldError,
@@ -17,30 +16,58 @@ import {
 } from "@/components/ui/field"
 import { AuthLayout } from "@/components/auth/auth-layout"
 import { GoogleIcon } from "@/components/auth/google-icon"
+import { PasswordInput } from "@/components/auth/password-input"
 import { loginSchema, type LoginValues } from "@/lib/auth-schemas"
+import { useLogin, useGoogleAuth } from "@/hooks/use-auth-mutations"
 
 export default function LoginPage() {
-  const [isSubmitting, setIsSubmitting] = React.useState(false)
+  const login = useLogin()
+  const googleAuth = useGoogleAuth()
 
-  const { control, handleSubmit } = useForm<LoginValues>({
+  const { control, handleSubmit, setError } = useForm<LoginValues>({
     resolver: zodResolver(loginSchema),
     defaultValues: { email: "", password: "" },
   })
 
   async function onSubmit(values: LoginValues) {
-    setIsSubmitting(true)
+    login.mutate(values, {
+      onError: (err) => {
+        // Surface server error under the password field
+        setError("password", { message: err.message })
+      },
+    })
+  }
+
+  async function onGoogleAuth() {
     try {
-      // TODO: wire up to NestJS auth endpoint
-      console.log("login", values)
-    } finally {
-      setIsSubmitting(false)
+      // Load Google Identity Services SDK and get idToken
+      const { google } = window as unknown as {
+        google: {
+          accounts: {
+            id: {
+              initialize: (config: object) => void
+              prompt: () => void
+            }
+          }
+        }
+      }
+
+      google.accounts.id.initialize({
+        client_id: process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID!,
+        callback: (response: { credential: string }) => {
+          googleAuth.mutate(
+            { idToken: response.credential },
+            { onError: (err) => alert(err.message) }
+          )
+        },
+      })
+      google.accounts.id.prompt()
+    } catch {
+      alert("Google sign-in failed. Please try again.")
     }
   }
 
-  function onGoogleAuth() {
-    // TODO: wire up Google OAuth flow
-    console.log("google auth")
-  }
+  const isSubmitting = login.isPending
 
   return (
     <AuthLayout
@@ -53,9 +80,10 @@ export default function LoginPage() {
           variant="outline"
           className="w-full"
           onClick={onGoogleAuth}
+          disabled={googleAuth.isPending}
         >
           <GoogleIcon />
-          Continue with Google
+          {googleAuth.isPending ? "Connecting..." : "Continue with Google"}
         </Button>
 
         <FieldSeparator>or</FieldSeparator>
@@ -111,6 +139,11 @@ export default function LoginPage() {
               )}
             />
 
+            {/* Server-level error (wrong credentials etc.) */}
+            {login.isError && (
+              <p className="text-sm text-destructive">{login.error.message}</p>
+            )}
+
             <Button type="submit" className="w-full" disabled={isSubmitting}>
               {isSubmitting ? "Logging in..." : "Log in"}
             </Button>
@@ -120,7 +153,10 @@ export default function LoginPage() {
 
       <p className="mt-6 text-center text-sm text-muted-foreground">
         Don&apos;t have an account?{" "}
-        <Link href="/register" className="font-medium text-primary hover:underline">
+        <Link
+          href="/register"
+          className="font-medium text-primary hover:underline"
+        >
           Sign up
         </Link>
       </p>

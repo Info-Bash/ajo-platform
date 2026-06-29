@@ -16,6 +16,7 @@ import {
 } from "@/components/ui/input-otp"
 import { AuthLayout } from "@/components/auth/auth-layout"
 import { verifyEmailSchema, type VerifyEmailValues } from "@/lib/auth-schemas"
+import { useVerifyEmail, useResendOtp } from "@/hooks/use-auth-mutations"
 
 const RESEND_COOLDOWN_SECONDS = 60
 
@@ -31,8 +32,9 @@ function VerifyEmailForm() {
   const searchParams = useSearchParams()
   const email = searchParams.get("email") ?? ""
 
-  const [isSubmitting, setIsSubmitting] = React.useState(false)
-  const [serverError, setServerError] = React.useState<string | null>(null)
+  const verifyEmail = useVerifyEmail()
+  const resendOtp = useResendOtp()
+
   const [cooldown, setCooldown] = React.useState(RESEND_COOLDOWN_SECONDS)
 
   const { control, handleSubmit, watch, setValue } = useForm<VerifyEmailValues>({
@@ -42,7 +44,6 @@ function VerifyEmailForm() {
 
   const code = watch("code")
 
-  // Countdown for resend button
   React.useEffect(() => {
     if (cooldown <= 0) return
     const timer = setInterval(() => setCooldown((c) => c - 1), 1000)
@@ -50,21 +51,12 @@ function VerifyEmailForm() {
   }, [cooldown])
 
   async function onSubmit(values: VerifyEmailValues) {
-    setIsSubmitting(true)
-    setServerError(null)
-    try {
-      // TODO: wire up to NestJS auth endpoint (verify OTP)
-      console.log("verify email", { email, code: values.code })
-    } catch {
-      setServerError("That code didn't work. Check it and try again.")
-    } finally {
-      setIsSubmitting(false)
-    }
+    verifyEmail.mutate({ email, code: values.code })
   }
 
-  // Auto-submit once all 6 digits are entered
+  // Auto-submit on 6 digits
   React.useEffect(() => {
-    if (code.length === 6 && !isSubmitting) {
+    if (code.length === 6 && !verifyEmail.isPending) {
       handleSubmit(onSubmit)()
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -72,8 +64,7 @@ function VerifyEmailForm() {
 
   function onResend() {
     if (cooldown > 0) return
-    // TODO: wire up to NestJS auth endpoint (resend OTP)
-    console.log("resend code to", email)
+    resendOtp.mutate({ email })
     setValue("code", "")
     setCooldown(RESEND_COOLDOWN_SECONDS)
   }
@@ -99,7 +90,7 @@ function VerifyEmailForm() {
                     maxLength={6}
                     value={field.value}
                     onChange={field.onChange}
-                    disabled={isSubmitting}
+                    disabled={verifyEmail.isPending}
                   >
                     <InputOTPGroup>
                       <InputOTPSlot index={0} />
@@ -116,9 +107,9 @@ function VerifyEmailForm() {
                     <FieldError errors={[fieldState.error]} />
                   </div>
                 )}
-                {serverError && (
+                {verifyEmail.isError && (
                   <div className="flex justify-center">
-                    <FieldError>{serverError}</FieldError>
+                    <FieldError>{verifyEmail.error.message}</FieldError>
                   </div>
                 )}
               </Field>
@@ -128,9 +119,9 @@ function VerifyEmailForm() {
           <Button
             type="submit"
             className="w-full"
-            disabled={isSubmitting || code.length !== 6}
+            disabled={verifyEmail.isPending || code.length !== 6}
           >
-            {isSubmitting ? "Verifying..." : "Verify email"}
+            {verifyEmail.isPending ? "Verifying..." : "Verify email"}
           </Button>
         </FieldGroup>
       </form>
@@ -147,12 +138,18 @@ function VerifyEmailForm() {
             <button
               type="button"
               onClick={onResend}
-              className="font-medium text-primary hover:underline"
+              disabled={resendOtp.isPending}
+              className="font-medium text-primary hover:underline disabled:opacity-50"
             >
-              Resend code
+              {resendOtp.isPending ? "Sending..." : "Resend code"}
             </button>
           )}
         </p>
+        {resendOtp.isSuccess && (
+          <p className="text-xs text-status-paid-text">
+            New code sent — check your inbox.
+          </p>
+        )}
         <Link href="/login" className="text-xs text-muted-foreground hover:underline">
           Back to log in
         </Link>

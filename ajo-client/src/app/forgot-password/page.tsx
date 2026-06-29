@@ -10,13 +10,11 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Field, FieldError, FieldGroup, FieldLabel } from "@/components/ui/field"
 import { AuthLayout } from "@/components/auth/auth-layout"
-import {
-  forgotPasswordSchema,
-  type ForgotPasswordValues,
-} from "@/lib/auth-schemas"
+import { forgotPasswordSchema, type ForgotPasswordValues } from "@/lib/auth-schemas"
+import { useForgotPassword } from "@/hooks/use-auth-mutations"
 
 export default function ForgotPasswordPage() {
-  const [isSubmitting, setIsSubmitting] = React.useState(false)
+  const forgotPassword = useForgotPassword()
   const [submittedEmail, setSubmittedEmail] = React.useState<string | null>(null)
 
   const { control, handleSubmit } = useForm<ForgotPasswordValues>({
@@ -24,15 +22,10 @@ export default function ForgotPasswordPage() {
     defaultValues: { email: "" },
   })
 
-  async function onSubmit(values: ForgotPasswordValues) {
-    setIsSubmitting(true)
-    try {
-      // TODO: wire up to NestJS auth endpoint (send reset link)
-      console.log("forgot password", values)
-      setSubmittedEmail(values.email)
-    } finally {
-      setIsSubmitting(false)
-    }
+  function onSubmit(values: ForgotPasswordValues) {
+    forgotPassword.mutate(values, {
+      onSuccess: () => setSubmittedEmail(values.email),
+    })
   }
 
   if (submittedEmail) {
@@ -46,8 +39,9 @@ export default function ForgotPasswordPage() {
             <Mail className="size-5 text-primary" />
           </div>
           <p className="text-sm text-muted-foreground">
-            If an account exists for <span className="font-medium text-foreground">{submittedEmail}</span>,
-            you&apos;ll receive an email with a link to reset your password shortly.
+            If an account exists for{" "}
+            <span className="font-medium text-foreground">{submittedEmail}</span>,
+            you&apos;ll receive a password reset link shortly.
           </p>
           <Button
             type="button"
@@ -89,13 +83,25 @@ export default function ForgotPasswordPage() {
                   autoComplete="email"
                   aria-invalid={fieldState.invalid}
                 />
-                {fieldState.invalid && <FieldError errors={[fieldState.error]} />}
+                {fieldState.invalid && (
+                  <FieldError errors={[fieldState.error]} />
+                )}
               </Field>
             )}
           />
 
-          <Button type="submit" className="w-full" disabled={isSubmitting}>
-            {isSubmitting ? "Sending..." : "Send reset link"}
+          {forgotPassword.isError && (
+            <p className="text-sm text-destructive">
+              {forgotPassword.error.message}
+            </p>
+          )}
+
+          <Button
+            type="submit"
+            className="w-full"
+            disabled={forgotPassword.isPending}
+          >
+            {forgotPassword.isPending ? "Sending..." : "Send reset link"}
           </Button>
         </FieldGroup>
       </form>

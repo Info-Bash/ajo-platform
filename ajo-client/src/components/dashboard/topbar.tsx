@@ -27,6 +27,7 @@ interface TopbarProps {
     avatarUrl?: string
   }
   notificationCount?: number
+  onLogout?: () => void
 }
 
 function initials(name: string) {
@@ -34,7 +35,7 @@ function initials(name: string) {
   return ((parts[0]?.[0] ?? "") + (parts[1]?.[0] ?? "")).toUpperCase()
 }
 
-export function Topbar({ user, notificationCount = 0 }: TopbarProps) {
+export function Topbar({ user, notificationCount = 0, onLogout }: TopbarProps) {
   const pathname = usePathname()
 
   // Derive page title from current route
@@ -127,6 +128,9 @@ export function Topbar({ user, notificationCount = 0 }: TopbarProps) {
           </Link>
         </Button>
 
+        <button type="button" onClick={onLogout} className="hidden lg:flex items-center gap-1 text-xs text-text-muted hover:text-destructive transition-colors" aria-label="Log out">
+          <span>Logout</span>
+        </button>
         <Link href="/settings/profile" aria-label="Profile settings">
           <Avatar size="sm" className="ml-1 cursor-pointer ring-2 ring-transparent transition-all hover:ring-primary/30">
             {user?.avatarUrl && <AvatarImage src={user.avatarUrl} alt={user?.name ?? "User"} />}
