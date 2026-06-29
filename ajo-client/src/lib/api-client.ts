@@ -69,13 +69,18 @@ async function request<T>(
     body: body !== undefined ? JSON.stringify(body) : undefined,
   })
 
-  // Token expired or invalid — clear and redirect to login
+  // Token expired or invalid — clear and redirect to login.
+  // Skip the redirect for auth endpoints (login/register/etc.) — a 401 there
+  // is just "wrong credentials" and should surface as a normal form error.
   if (response.status === 401) {
-    clearToken()
-    if (typeof window !== "undefined") {
-      window.location.href = "/login"
+    if (!skipAuth) {
+      clearToken()
+      if (typeof window !== "undefined") {
+        window.location.href = "/login"
+      }
+      throw new ApiError(401, "Session expired. Please log in again.")
     }
-    throw new ApiError(401, "Session expired. Please log in again.")
+    // fall through so the body is parsed and the real server message is thrown
   }
 
   if (!response.ok) {

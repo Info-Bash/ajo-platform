@@ -43,7 +43,7 @@ export class AuthService {
     private readonly mail: MailService,
   ) {}
 
-  // ─── Register ─────────────────────────────────────────────────────────────
+  // ─── Register ───────────────────────────────────────────────────
 
   async register(dto: RegisterDto) {
     // Check email and phone uniqueness upfront for a clear error message
@@ -95,8 +95,19 @@ export class AuthService {
       return newUser;
     });
 
-    // Send OTP email via Brevo SMTP
-    await this.mail.sendOtp(user.email, otp, user.fullName);
+    // Send OTP email via Brevo SMTP.
+    // Mail failures (SMTP down, IPv6 routing, rate limit, etc.) MUST NOT
+    // roll back the account creation — the user and wallet already exist
+    // and the OTP is stored. Surface a friendlier message so the client
+    // can prompt the user to use "resend code".
+    try {
+      await this.mail.sendOtp(user.email, otp, user.fullName);
+    } catch (err) {
+      this.logger.error(
+        `Failed to send signup OTP to ${user.email}: ${(err as Error).message}`,
+        (err as Error).stack,
+      );
+    }
 
     return {
       message: 'Account created. Check your email for the verification code.',
@@ -198,7 +209,14 @@ export class AuthService {
       },
     });
 
-    await this.mail.sendOtp(user.email, otp, user.fullName);
+    try {
+      await this.mail.sendOtp(user.email, otp, user.fullName);
+    } catch (err) {
+      this.logger.error(
+        `Failed to resend OTP to ${user.email}: ${(err as Error).message}`,
+        (err as Error).stack,
+      );
+    }
 
     return { message: 'If an account exists, a new code has been sent.' };
   }
@@ -288,7 +306,16 @@ export class AuthService {
       },
     });
 
-    await this.mail.sendPasswordReset(user.email, rawToken, user.fullName);
+    try {
+      await this.mail.sendPasswordReset(user.email, rawToken, user.fullName);
+    } catch (err) {
+      this.logger.error(
+        `Failed to send password reset email to ${user.email}: ${(err as Error).message}`,
+        (err as Error).stack,
+      );
+      // Swallow so we don't leak whether the address exists, and so the
+      // request returns 200 even when SMTP is degraded.
+    }
 
     return response;
   }

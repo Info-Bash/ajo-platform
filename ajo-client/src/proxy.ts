@@ -22,11 +22,11 @@ const AUTH_ROUTES = [
   "/verify-email",
 ]
 
-export function middleware(request: NextRequest) {
+export function proxy(request: NextRequest) {
   const { pathname } = request.nextUrl
 
   // Check for JWT token in cookies (we'll also set a cookie on login
-  // alongside localStorage so middleware can read it)
+  // alongside localStorage so proxy can read it)
   const token = request.cookies.get("ajo_access_token")?.value
 
   const isProtected = PROTECTED_PREFIXES.some((prefix) =>

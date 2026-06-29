@@ -20,6 +20,7 @@ import { AuthLayout } from "@/components/auth/auth-layout"
 import { GoogleIcon } from "@/components/auth/google-icon"
 import { registerSchema, type RegisterValues } from "@/lib/auth-schemas"
 import { useRegister, useGoogleAuth } from "@/hooks/use-auth-mutations"
+import { signInWithGoogle } from "@/lib/google-signin"
 
 export default function RegisterPage() {
   const register = useRegister()
@@ -27,6 +28,7 @@ export default function RegisterPage() {
 
   const { control, handleSubmit } = useForm<RegisterValues>({
     resolver: zodResolver(registerSchema),
+    mode: "onChange",
     defaultValues: {
       fullName: "",
       email: "",
@@ -47,28 +49,15 @@ export default function RegisterPage() {
 
   async function onGoogleAuth() {
     try {
-      const { google } = window as unknown as {
-        google: {
-          accounts: {
-            id: {
-              initialize: (config: object) => void
-              prompt: () => void
-            }
-          }
-        }
-      }
-      google.accounts.id.initialize({
-        client_id: process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID!,
-        callback: (response: { credential: string }) => {
-          googleAuth.mutate(
-            { idToken: response.credential },
-            { onError: (err) => alert(err.message) }
-          )
-        },
-      })
-      google.accounts.id.prompt()
-    } catch {
-      alert("Google sign-up failed. Please try again.")
+      const idToken = await signInWithGoogle(
+        process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID!,
+      )
+      googleAuth.mutate(
+        { idToken },
+        { onError: (err) => alert(err.message) },
+      )
+    } catch (e) {
+      alert((e as Error).message ?? "Google sign-up failed. Please try again.")
     }
   }
 

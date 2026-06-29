@@ -15,6 +15,10 @@ export class MailService {
       host: mail.host,
       port: mail.port,
       secure: false, // Brevo uses STARTTLS on port 587
+      // Force IPv4. Render and many container hosts don't have outbound
+      // IPv6 — without this, Node may resolve smtp-relay.brevo.com to ::1
+      // / an AAAA record and fail with ECONNREFUSED ::1:587.
+      family: 4,
       auth: {
         user: mail.user,
         pass: mail.pass,

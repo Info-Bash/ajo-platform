@@ -19,6 +19,7 @@ import { GoogleIcon } from "@/components/auth/google-icon"
 import { PasswordInput } from "@/components/auth/password-input"
 import { loginSchema, type LoginValues } from "@/lib/auth-schemas"
 import { useLogin, useGoogleAuth } from "@/hooks/use-auth-mutations"
+import { signInWithGoogle } from "@/lib/google-signin"
 
 export default function LoginPage() {
   const login = useLogin()
@@ -40,30 +41,15 @@ export default function LoginPage() {
 
   async function onGoogleAuth() {
     try {
-      // Load Google Identity Services SDK and get idToken
-      const { google } = window as unknown as {
-        google: {
-          accounts: {
-            id: {
-              initialize: (config: object) => void
-              prompt: () => void
-            }
-          }
-        }
-      }
-
-      google.accounts.id.initialize({
-        client_id: process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID!,
-        callback: (response: { credential: string }) => {
-          googleAuth.mutate(
-            { idToken: response.credential },
-            { onError: (err) => alert(err.message) }
-          )
-        },
-      })
-      google.accounts.id.prompt()
-    } catch {
-      alert("Google sign-in failed. Please try again.")
+      const idToken = await signInWithGoogle(
+        process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID!,
+      )
+      googleAuth.mutate(
+        { idToken },
+        { onError: (err) => alert(err.message) },
+      )
+    } catch (e) {
+      alert((e as Error).message ?? "Google sign-in failed. Please try again.")
     }
   }
 
