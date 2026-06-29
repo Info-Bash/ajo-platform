@@ -21,7 +21,7 @@ export const validationSchema = Joi.object({
   MAIL_PORT: Joi.number().default(587),
   MAIL_USER: Joi.string().allow('').default(''),
   MAIL_PASS: Joi.string().allow('').default(''),
-  MAIL_FROM: Joi.string().default('noreply@ajo.app'),
+  MAIL_FROM: Joi.string().default('abubakarbabatunde20@gmail.com'),
   GOOGLE_CLIENT_ID: Joi.string().allow('').default(''),
   FRONTEND_URL: Joi.string()
     .allow('')
@@ -66,6 +66,6 @@ export const configFactory = (): AppConfig => ({
     port: parseInt(process.env.MAIL_PORT ?? '587', 10),
     user: process.env.MAIL_USER ?? '',
     pass: process.env.MAIL_PASS ?? '',
-    from: process.env.MAIL_FROM ?? 'noreply@ajo.app',
+    from: process.env.MAIL_FROM ?? 'abubakarbabatunde20@gmail.com',
   },
 });
