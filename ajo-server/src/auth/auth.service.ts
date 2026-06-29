@@ -10,6 +10,7 @@ import { JwtService } from '@nestjs/jwt';
 import { ConfigService } from '@nestjs/config';
 import * as bcrypt from 'bcrypt';
 import { PrismaService } from '../prisma/prisma.service';
+import { MailService } from '../mail/mail.service';
 import { AppConfig } from '../config/app.config';
 // TokenType values as strings — safe before prisma generate
 import {
@@ -39,6 +40,7 @@ export class AuthService {
     private readonly prisma: PrismaService,
     private readonly jwtService: JwtService,
     private readonly config: ConfigService<AppConfig>,
+    private readonly mail: MailService,
   ) {}
 
   // ─── Register ─────────────────────────────────────────────────────────────
@@ -93,12 +95,8 @@ export class AuthService {
       return newUser;
     });
 
-    // TODO: send OTP via email service (Resend / Nodemailer)
-    // await this.mailService.sendOtp(user.email, otp);
-    // For development, log the OTP so you can test without email setup
-    this.logger.debug(
-      `[DEV ONLY] OTP for ${user.email}: ${otp}`,
-    );
+    // Send OTP email via Brevo SMTP
+    await this.mail.sendOtp(user.email, otp, user.fullName);
 
     return {
       message: 'Account created. Check your email for the verification code.',
@@ -200,8 +198,7 @@ export class AuthService {
       },
     });
 
-    // TODO: await this.mailService.sendOtp(user.email, otp);
-    this.logger.debug(`[DEV ONLY] Resent OTP for ${user.email}: ${otp}`);
+    await this.mail.sendOtp(user.email, otp, user.fullName);
 
     return { message: 'If an account exists, a new code has been sent.' };
   }
@@ -291,10 +288,7 @@ export class AuthService {
       },
     });
 
-    // TODO: await this.mailService.sendPasswordReset(user.email, rawToken);
-    this.logger.debug(
-      `[DEV ONLY] Password reset token for ${user.email}: ${rawToken}`,
-    );
+    await this.mail.sendPasswordReset(user.email, rawToken, user.fullName);
 
     return response;
   }

@@ -23,6 +23,9 @@ export const validationSchema = Joi.object({
   MAIL_PASS: Joi.string().allow('').default(''),
   MAIL_FROM: Joi.string().default('noreply@ajo.app'),
   GOOGLE_CLIENT_ID: Joi.string().allow('').default(''),
+  FRONTEND_URL: Joi.string()
+    .allow('')
+    .default('https://ajo-app-eta.vercel.app'),
 });
 
 export interface AppConfig {
