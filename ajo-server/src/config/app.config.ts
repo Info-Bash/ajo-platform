@@ -22,6 +22,8 @@ export const validationSchema = Joi.object({
   MAIL_USER: Joi.string().allow('').default(''),
   MAIL_PASS: Joi.string().allow('').default(''),
   MAIL_FROM: Joi.string().default('abubakarbabatunde20@gmail.com'),
+  MAIL_FROM_NAME: Joi.string().default('Ajo App'),
+  BREVO_API_KEY: Joi.string().allow('').default(''),
   GOOGLE_CLIENT_ID: Joi.string().allow('').default(''),
   FRONTEND_URL: Joi.string()
     .allow('')
@@ -41,11 +43,9 @@ export interface AppConfig {
   };
   googleClientId: string;
   mail: {
-    host: string;
-    port: number;
-    user: string;
-    pass: string;
+    apiKey: string;
     from: string;
+    fromName: string;
   };
 }
 
@@ -62,10 +62,8 @@ export const configFactory = (): AppConfig => ({
   },
   googleClientId: process.env.GOOGLE_CLIENT_ID ?? '',
   mail: {
-    host: process.env.MAIL_HOST ?? '',
-    port: parseInt(process.env.MAIL_PORT ?? '587', 10),
-    user: process.env.MAIL_USER ?? '',
-    pass: process.env.MAIL_PASS ?? '',
+    apiKey: process.env.BREVO_API_KEY ?? '',
     from: process.env.MAIL_FROM ?? 'abubakarbabatunde20@gmail.com',
+    fromName: process.env.MAIL_FROM_NAME ?? 'Ajo App',
   },
 });
