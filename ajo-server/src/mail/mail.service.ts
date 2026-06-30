@@ -1,6 +1,7 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import * as nodemailer from 'nodemailer';
+import type SMTPTransport from 'nodemailer/lib/smtp-transport';
 import { AppConfig } from '../config/app.config';
 
 @Injectable()
@@ -11,7 +12,7 @@ export class MailService {
   constructor(private readonly config: ConfigService<AppConfig>) {
     const mail = this.config.get('mail', { infer: true })!;
 
-    this.transporter = nodemailer.createTransport({
+    const transportOptions: SMTPTransport.Options & { family?: number } = {
       host: mail.host,
       port: mail.port,
       secure: false,        // STARTTLS on port 587 — NOT SSL
@@ -26,7 +27,9 @@ export class MailService {
       },
       logger: false,
       debug: false,
-    });
+    };
+
+    this.transporter = nodemailer.createTransport(transportOptions);
 
     // Verify connection on startup so misconfiguration fails loudly at boot
     // not silently during the first email send
