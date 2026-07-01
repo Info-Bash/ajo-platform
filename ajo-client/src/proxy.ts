@@ -20,13 +20,22 @@ const AUTH_ROUTES = [
   "/register",
   "/forgot-password",
   "/verify-email",
+  "/reset-password",
+]
+
+// Routes that must NEVER be redirected regardless of auth state
+const PUBLIC_ROUTES = [
+  "/auth/callback", // Google OAuth callback — needs to run to SET the token
 ]
 
 export function proxy(request: NextRequest) {
   const { pathname } = request.nextUrl
 
-  // Check for JWT token in cookies (we'll also set a cookie on login
-  // alongside localStorage so proxy can read it)
+  // Never intercept public/callback routes
+  if (PUBLIC_ROUTES.some((r) => pathname.startsWith(r))) {
+    return NextResponse.next()
+  }
+
   const token = request.cookies.get("ajo_access_token")?.value
 
   const isProtected = PROTECTED_PREFIXES.some((prefix) =>
