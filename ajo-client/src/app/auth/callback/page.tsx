@@ -13,7 +13,7 @@ import * as React from "react"
 import { useRouter, useSearchParams } from "next/navigation"
 import { useAuth } from "@/providers/auth-provider"
 
-export default function AuthCallbackPage() {
+function AuthCallbackInner() {
   const router = useRouter()
   const searchParams = useSearchParams()
   const { onAuthSuccess } = useAuth()
@@ -55,5 +55,21 @@ export default function AuthCallbackPage() {
     <div className="flex min-h-screen items-center justify-center">
       <p className="text-sm text-muted-foreground">Signing you in…</p>
     </div>
+  )
+}
+
+// useSearchParams() requires a Suspense boundary in Next.js App Router.
+// We wrap the inner component here so the build doesn't bail out.
+export default function AuthCallbackPage() {
+  return (
+    <React.Suspense
+      fallback={
+        <div className="flex min-h-screen items-center justify-center">
+          <p className="text-sm text-muted-foreground">Loading…</p>
+        </div>
+      }
+    >
+      <AuthCallbackInner />
+    </React.Suspense>
   )
 }
