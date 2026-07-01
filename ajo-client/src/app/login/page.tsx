@@ -24,12 +24,10 @@ import { useLogin } from "@/hooks/use-auth-mutations"
 const API_BASE_URL =
   process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:3000/api/v1"
 
-export default function LoginPage() {
+// Inner component that uses useSearchParams — must be inside a Suspense boundary
+function LoginForm() {
   const login = useLogin()
   const searchParams = useSearchParams()
-
-  // Error bounced back from the Google redirect flow (e.g. user cancelled,
-  // or the backend failed to exchange the code) — surfaced via ?error=...
   const googleError = searchParams.get("error")
 
   const { control, handleSubmit, setError } = useForm<LoginValues>({
@@ -52,8 +50,6 @@ export default function LoginPage() {
   function onGoogleAuth() {
     window.location.href = `${API_BASE_URL}/auth/google`
   }
-
-  const isSubmitting = login.isPending
 
   return (
     <AuthLayout
@@ -121,19 +117,15 @@ export default function LoginPage() {
                     autoComplete="current-password"
                     aria-invalid={fieldState.invalid}
                   />
-                  {/* Single source of truth for feedback on this field —
-                      both client-side validation errors AND the server's
-                      "Invalid email or password" land here via setError
-                      above. Nothing else renders this message a second time. */}
                   {fieldState.invalid && (
                     <FieldError errors={[fieldState.error]} />
                   )}
                 </Field>
               )}
             />
-            
-            <Button type="submit" className="w-full" disabled={isSubmitting}>
-              {isSubmitting ? "Logging in..." : "Log in"}
+
+            <Button type="submit" className="w-full" disabled={login.isPending}>
+              {login.isPending ? "Logging in..." : "Log in"}
             </Button>
           </FieldGroup>
         </form>
@@ -149,5 +141,13 @@ export default function LoginPage() {
         </Link>
       </p>
     </AuthLayout>
+  )
+}
+
+export default function LoginPage() {
+  return (
+    <React.Suspense fallback={null}>
+      <LoginForm />
+    </React.Suspense>
   )
 }
