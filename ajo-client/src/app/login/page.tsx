@@ -2,6 +2,7 @@
 
 import * as React from "react"
 import Link from "next/link"
+import { useSearchParams } from "next/navigation"
 import { Controller, useForm } from "react-hook-form"
 import { zodResolver } from "@hookform/resolvers/zod"
 
@@ -18,39 +19,38 @@ import { AuthLayout } from "@/components/auth/auth-layout"
 import { GoogleIcon } from "@/components/auth/google-icon"
 import { PasswordInput } from "@/components/auth/password-input"
 import { loginSchema, type LoginValues } from "@/lib/auth-schemas"
-import { useLogin, useGoogleAuth } from "@/hooks/use-auth-mutations"
-import { signInWithGoogle } from "@/lib/google-signin"
+import { useLogin } from "@/hooks/use-auth-mutations"
+
+const API_BASE_URL =
+  process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:3000/api/v1"
 
 export default function LoginPage() {
   const login = useLogin()
-  const googleAuth = useGoogleAuth()
+  const searchParams = useSearchParams()
+
+  // Error bounced back from the Google redirect flow (e.g. user cancelled,
+  // or the backend failed to exchange the code) — surfaced via ?error=...
+  const googleError = searchParams.get("error")
 
   const { control, handleSubmit, setError } = useForm<LoginValues>({
     resolver: zodResolver(loginSchema),
     defaultValues: { email: "", password: "" },
   })
 
-  async function onSubmit(values: LoginValues) {
+  function onSubmit(values: LoginValues) {
     login.mutate(values, {
       onError: (err) => {
-        // Surface server error under the password field
+        // Surface server error under the password field only — do NOT also
+        // render login.isError below, or the same message shows twice.
         setError("password", { message: err.message })
       },
     })
   }
 
-  async function onGoogleAuth() {
-    try {
-      const idToken = await signInWithGoogle(
-        process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID!,
-      )
-      googleAuth.mutate(
-        { idToken },
-        { onError: (err) => alert(err.message) },
-      )
-    } catch (e) {
-      alert((e as Error).message ?? "Google sign-in failed. Please try again.")
-    }
+  // Redirect OAuth flow: just send the browser to the backend's Google
+  // entrypoint. No GSI/One Tap involved, so no FedCM deprecation warnings.
+  function onGoogleAuth() {
+    window.location.href = `${API_BASE_URL}/auth/google`
   }
 
   const isSubmitting = login.isPending
@@ -66,11 +66,14 @@ export default function LoginPage() {
           variant="outline"
           className="w-full"
           onClick={onGoogleAuth}
-          disabled={googleAuth.isPending}
         >
           <GoogleIcon />
-          {googleAuth.isPending ? "Connecting..." : "Continue with Google"}
+          Continue with Google
         </Button>
+
+        {googleError && (
+          <p className="text-sm text-destructive">{googleError}</p>
+        )}
 
         <FieldSeparator>or</FieldSeparator>
 
@@ -118,18 +121,17 @@ export default function LoginPage() {
                     autoComplete="current-password"
                     aria-invalid={fieldState.invalid}
                   />
+                  {/* Single source of truth for feedback on this field —
+                      both client-side validation errors AND the server's
+                      "Invalid email or password" land here via setError
+                      above. Nothing else renders this message a second time. */}
                   {fieldState.invalid && (
                     <FieldError errors={[fieldState.error]} />
                   )}
                 </Field>
               )}
             />
-
-            {/* Server-level error (wrong credentials etc.) */}
-            {login.isError && (
-              <p className="text-sm text-destructive">{login.error.message}</p>
-            )}
-
+            
             <Button type="submit" className="w-full" disabled={isSubmitting}>
               {isSubmitting ? "Logging in..." : "Log in"}
             </Button>

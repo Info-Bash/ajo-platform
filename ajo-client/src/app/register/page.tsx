@@ -19,12 +19,13 @@ import {
 import { AuthLayout } from "@/components/auth/auth-layout"
 import { GoogleIcon } from "@/components/auth/google-icon"
 import { registerSchema, type RegisterValues } from "@/lib/auth-schemas"
-import { useRegister, useGoogleAuth } from "@/hooks/use-auth-mutations"
-import { signInWithGoogle } from "@/lib/google-signin"
+import { useRegister } from "@/hooks/use-auth-mutations"
+
+const API_BASE_URL =
+  process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:3000/api/v1"
 
 export default function RegisterPage() {
   const register = useRegister()
-  const googleAuth = useGoogleAuth()
 
   const { control, handleSubmit } = useForm<RegisterValues>({
     resolver: zodResolver(registerSchema),
@@ -38,7 +39,7 @@ export default function RegisterPage() {
     },
   })
 
-  async function onSubmit(values: RegisterValues) {
+  function onSubmit(values: RegisterValues) {
     register.mutate({
       fullName: values.fullName,
       email: values.email,
@@ -47,18 +48,10 @@ export default function RegisterPage() {
     })
   }
 
-  async function onGoogleAuth() {
-    try {
-      const idToken = await signInWithGoogle(
-        process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID!,
-      )
-      googleAuth.mutate(
-        { idToken },
-        { onError: (err) => alert(err.message) },
-      )
-    } catch (e) {
-      alert((e as Error).message ?? "Google sign-up failed. Please try again.")
-    }
+  // Redirect OAuth flow — same backend entrypoint as login. The backend
+  // creates the account on the fly if the Google email is new.
+  function onGoogleAuth() {
+    window.location.href = `${API_BASE_URL}/auth/google`
   }
 
   return (
@@ -72,10 +65,9 @@ export default function RegisterPage() {
           variant="outline"
           className="w-full"
           onClick={onGoogleAuth}
-          disabled={googleAuth.isPending}
         >
           <GoogleIcon />
-          {googleAuth.isPending ? "Connecting..." : "Sign up with Google"}
+          Sign up with Google
         </Button>
 
         <FieldSeparator>or</FieldSeparator>

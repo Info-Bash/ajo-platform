@@ -406,7 +406,9 @@ export class AuthService {
     return this.jwtService.sign(payload);
   }
 
-  // ─── Google OAuth ─────────────────────────────────────────────────────────
+  // ─── Google OAuth — One Tap / GSI popup (idToken flow) ─────────────────────
+  // Kept for backward compatibility. Prefer googleAuthRedirect() for new flows
+  // since it avoids the FedCM/One Tap deprecation warnings entirely.
 
   async googleAuth(idToken: string) {
     // Lazy import to avoid loading google-auth-library at startup if not used
@@ -435,6 +437,106 @@ export class AuthService {
     }
 
     const { email, name, picture, sub: googleId } = googlePayload;
+
+    return this.upsertGoogleUser({ email, name, picture, googleId });
+  }
+
+  // ─── Google OAuth — Redirect / Authorization Code flow ─────────────────────
+  // Standard OAuth2 redirect flow: frontend sends the browser to Google's
+  // consent screen, Google redirects back to our backend callback with a
+  // one-time `code`, we exchange it server-side for tokens, then redirect
+  // the browser to the frontend with our own JWT attached.
+  //
+  // This sidesteps Google's One Tap / FedCM deprecation entirely since no
+  // GSI prompt UI is used at all.
+
+  /**
+   * Builds the Google consent screen URL the frontend should redirect to.
+   */
+  buildGoogleAuthUrl(redirectUri: string, state?: string): string {
+    const googleClientId = this.config.get('googleClientId', { infer: true });
+    if (!googleClientId) {
+      throw new BadRequestException('Google authentication is not configured');
+    }
+
+    const params = new URLSearchParams({
+      client_id: googleClientId,
+      redirect_uri: redirectUri,
+      response_type: 'code',
+      scope: 'openid email profile',
+      access_type: 'online',
+      prompt: 'select_account',
+      ...(state ? { state } : {}),
+    });
+
+    return `https://accounts.google.com/o/oauth2/v2/auth?${params.toString()}`;
+  }
+
+  /**
+   * Exchanges the authorization `code` Google sent to our callback URL for
+   * tokens, verifies the ID token, and upserts/logs in the user — same
+   * outcome as googleAuth() but reached via redirect instead of popup.
+   */
+  async googleAuthRedirect(code: string, redirectUri: string) {
+    const { OAuth2Client } = await import('google-auth-library');
+
+    const googleClientId = this.config.get('googleClientId', { infer: true });
+    const googleClientSecret = this.config.get('googleClientSecret', {
+      infer: true,
+    });
+    if (!googleClientId || !googleClientSecret) {
+      throw new BadRequestException('Google authentication is not configured');
+    }
+
+    const client = new OAuth2Client(
+      googleClientId,
+      googleClientSecret,
+      redirectUri,
+    );
+
+    let tokens;
+    try {
+      ({ tokens } = await client.getToken(code));
+    } catch {
+      throw new UnauthorizedException('Invalid or expired Google authorization code');
+    }
+
+    if (!tokens.id_token) {
+      throw new UnauthorizedException('Google did not return an ID token');
+    }
+
+    let ticket;
+    try {
+      ticket = await client.verifyIdToken({
+        idToken: tokens.id_token,
+        audience: googleClientId,
+      });
+    } catch {
+      throw new UnauthorizedException('Invalid Google token');
+    }
+
+    const googlePayload = ticket.getPayload();
+    if (!googlePayload?.email) {
+      throw new UnauthorizedException('Could not retrieve email from Google token');
+    }
+
+    const { email, name, picture, sub: googleId } = googlePayload;
+
+    return this.upsertGoogleUser({ email, name, picture, googleId });
+  }
+
+  /**
+   * Shared logic: find-or-create the user record from a verified Google
+   * identity, then issue our own JWT. Used by both the idToken and the
+   * redirect/code-exchange flows so behavior stays identical.
+   */
+  private async upsertGoogleUser(googleProfile: {
+    email: string;
+    name?: string | null;
+    picture?: string | null;
+    googleId: string;
+  }) {
+    const { email, name, picture, googleId } = googleProfile;
 
     // Check if user already exists
     let user = await this.prisma.user.findUnique({ where: { email } });

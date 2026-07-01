@@ -25,9 +25,13 @@ export const validationSchema = Joi.object({
   MAIL_FROM_NAME: Joi.string().default('Ajo App'),
   BREVO_API_KEY: Joi.string().allow('').default(''),
   GOOGLE_CLIENT_ID: Joi.string().allow('').default(''),
+  GOOGLE_CLIENT_SECRET: Joi.string().allow('').default(''),
   FRONTEND_URL: Joi.string()
     .allow('')
     .default('https://ajo-app-eta.vercel.app'),
+  BACKEND_URL: Joi.string()
+    .allow('')
+    .default('https://ajo-server.onrender.com'),
 });
 
 export interface AppConfig {
@@ -42,6 +46,9 @@ export interface AppConfig {
     accountId: string;
   };
   googleClientId: string;
+  googleClientSecret: string;
+  frontendUrl: string;
+  backendUrl: string;
   mail: {
     apiKey: string;
     from: string;
@@ -61,6 +68,9 @@ export const configFactory = (): AppConfig => ({
     accountId: process.env.NOMBA_ACCOUNT_ID ?? '',
   },
   googleClientId: process.env.GOOGLE_CLIENT_ID ?? '',
+  googleClientSecret: process.env.GOOGLE_CLIENT_SECRET ?? '',
+  frontendUrl: process.env.FRONTEND_URL ?? 'https://ajo-app-eta.vercel.app',
+  backendUrl: process.env.BACKEND_URL ?? 'https://ajo-server.onrender.com',
   mail: {
     apiKey: process.env.BREVO_API_KEY ?? '',
     from: process.env.MAIL_FROM ?? 'abubakarbabatunde20@gmail.com',
