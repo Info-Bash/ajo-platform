@@ -86,6 +86,15 @@ export class WebhooksController {
 
   constructor(private readonly webhooksService: WebhooksService) {}
 
+  /**
+   * POST /api/v1/webhooks/nomba
+   *
+   * NOTE: @Body() is typed as `any` intentionally here.
+   * The global ValidationPipe with forbidNonWhitelisted would reject Nomba's
+   * payload since it isn't a decorated DTO class. The NombaSignatureGuard
+   * validates structure and authenticity before the service touches the data.
+   */
+  
   @Post('nomba')
   @UseGuards(NombaSignatureGuard)
   @HttpCode(HttpStatus.OK)

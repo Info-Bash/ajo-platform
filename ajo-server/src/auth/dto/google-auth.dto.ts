@@ -1,11 +1,12 @@
 import { IsString, IsNotEmpty } from 'class-validator';
+import { ApiProperty } from '@nestjs/swagger';
 
 export class GoogleAuthDto {
-  /**
-   * The Google ID token obtained from the frontend
-   * after the user completes the Google sign-in popup.
-   * Verified server-side using Google's public keys.
-   */
+  @ApiProperty({
+    description:
+      "Google ID token (JWT) obtained from the Google Identity Services SDK after the user completes sign-in. Verified server-side against Google's public keys.",
+    example: 'eyJhbGciOiJSUzI1NiIsImtpZCI6Ij...',
+  })
   @IsString()
   @IsNotEmpty()
   idToken: string;

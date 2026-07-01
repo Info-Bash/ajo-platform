@@ -1,5 +1,6 @@
 import { NestFactory } from '@nestjs/core';
 import { ValidationPipe } from '@nestjs/common';
+import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
 import { AppModule } from './app.module';
 import { GlobalExceptionFilter } from './common/filters/global-exception.filter';
 
@@ -8,7 +9,6 @@ async function bootstrap() {
 
   app.setGlobalPrefix('api/v1');
 
-  // CORS — include your deployed Vercel frontend
   app.enableCors({
     origin: [
       'http://localhost:3000',
@@ -18,26 +18,53 @@ async function bootstrap() {
     credentials: true,
   });
 
-  // Global validation pipe.
-  // Note: forbidNonWhitelisted is false because webhook endpoints receive
-  // external payloads (Nomba) that aren't decorated DTO classes.
-  // Signature verification in NombaSignatureGuard handles webhook authenticity.
   app.useGlobalPipes(
     new ValidationPipe({
       whitelist: true,
-      forbidNonWhitelisted: false, // can't use true with raw webhook payloads
+      forbidNonWhitelisted: false,
       transform: true,
-      transformOptions: {
-        enableImplicitConversion: true,
-      },
+      transformOptions: { enableImplicitConversion: true },
     }),
   );
 
   app.useGlobalFilters(new GlobalExceptionFilter());
 
+  // ── Swagger ──────────────────────────────────────────────────────────────
+  const config = new DocumentBuilder()
+    .setTitle('Ajo API')
+    .setDescription(
+      `REST API for the Ajo rotating savings circle (ajo) platform.\n\n` +
+      `**Authentication:** Most endpoints require a Bearer JWT. Obtain a token via ` +
+      `\`POST /auth/login\`, \`POST /auth/verify-email\`, or \`POST /auth/google\`, ` +
+      `then click **Authorize** and enter: \`Bearer <your_token>\`.`,
+    )
+    .setVersion('1.0')
+    .addBearerAuth(
+      { type: 'http', scheme: 'bearer', bearerFormat: 'JWT' },
+      'JWT',
+    )
+    .addServer('https://ajo-server.onrender.com', 'Production')
+    .addServer('http://localhost:3001', 'Local development')
+    .addTag('Auth', 'Registration, login, email verification, password reset, Google OAuth')
+    .addTag('Webhooks', 'Inbound Nomba payment event callbacks')
+    .build();
+
+  const document = SwaggerModule.createDocument(app, config);
+
+  // Available at /api/v1/docs
+  SwaggerModule.setup('api/v1/docs', app, document, {
+    swaggerOptions: {
+      persistAuthorization: true,   // keeps the JWT filled in across page refreshes
+      tagsSorter: 'alpha',
+      operationsSorter: 'alpha',
+    },
+    customSiteTitle: 'Ajo API Docs',
+  });
+
   const port = process.env.PORT ?? 3001;
   await app.listen(port);
   console.log(`🚀 Ajo API running on http://localhost:${port}/api/v1`);
+  console.log(`📖 Swagger docs  at http://localhost:${port}/api/v1/docs`);
 }
 
 bootstrap();
