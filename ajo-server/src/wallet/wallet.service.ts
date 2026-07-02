@@ -27,7 +27,7 @@ export class WalletService {
     private readonly prisma: PrismaService,
     private readonly nomba: NombaService,
     private readonly config: ConfigService<AppConfig>,
-  ) {}
+  ) { }
 
   // ─── Get Wallet ───────────────────────────────────────────────────────────
 
@@ -121,6 +121,9 @@ export class WalletService {
       include: { user: { select: { fullName: true } } },
     });
     if (!senderWallet) throw new NotFoundException('Sender wallet not found');
+    if (!senderWallet.user) {
+      throw new NotFoundException('Sender account is not a personal wallet');
+    }
 
     // Sufficient balance check
     if (senderWallet.balanceKobo < amountKobo) {
