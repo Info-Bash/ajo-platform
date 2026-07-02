@@ -1,5 +1,29 @@
 import { z } from "zod"
 
+// ─── Phone normalization (mirrors backend logic) ──────────────────────────────
+// Normalizes Nigerian phone numbers to +234XXXXXXXXXX before validation.
+// This ensures 08137413868 and +2348137413868 are treated identically.
+
+function normalizePhone(raw: string): string {
+  const stripped = raw.replace(/[\s\-().]/g, "")
+
+  if (stripped.startsWith("+234")) return stripped
+  if (stripped.startsWith("234")) return `+${stripped}`
+  if (stripped.startsWith("0")) return `+234${stripped.slice(1)}`
+  return stripped // unknown format — let regex catch it
+}
+
+const phoneSchema = z
+  .string()
+  .min(1, "Phone number is required")
+  .transform((val) => normalizePhone(val))
+  .refine(
+    (val) => /^\+234[0-9]{10}$/.test(val),
+    "Enter a valid Nigerian phone number (e.g. 08137413868)"
+  )
+
+// ─── Schemas ──────────────────────────────────────────────────────────────────
+
 export const loginSchema = z.object({
   email: z.string().min(1, "Email is required").email("Enter a valid email address"),
   password: z.string().min(1, "Password is required"),
@@ -11,10 +35,7 @@ export const registerSchema = z
   .object({
     fullName: z.string().min(2, "Enter your full name"),
     email: z.string().min(1, "Email is required").email("Enter a valid email address"),
-    phone: z
-      .string()
-      .min(1, "Phone number is required")
-      .regex(/^\+?[0-9]{10,14}$/, "Enter a valid phone number"),
+    phone: phoneSchema,
     password: z
       .string()
       .min(8, "Password must be at least 8 characters")

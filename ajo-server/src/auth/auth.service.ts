@@ -10,6 +10,7 @@ import { JwtService } from '@nestjs/jwt';
 import { ConfigService } from '@nestjs/config';
 import * as bcrypt from 'bcrypt';
 import { PrismaService } from '../prisma/prisma.service';
+import { normalizeNigerianPhone } from '../common/utils/phone.util';
 import { MailService } from '../mail/mail.service';
 import { AppConfig } from '../config/app.config';
 // TokenType values as strings — safe before prisma generate
@@ -52,10 +53,17 @@ export class AuthService {
   // ─── Register ───────────────────────────────────────────────────
 
   async register(dto: RegisterDto) {
+    // Normalize phone to E.164 format (+234XXXXXXXXXX) before any DB operation
+    // This ensures 08137413868 and 2348137413868 are treated as the same number
+    const normalizedPhone = normalizeNigerianPhone(dto.phone);
+    if (!normalizedPhone) {
+      throw new BadRequestException('Enter a valid Nigerian phone number');
+    }
+
     // Check email and phone uniqueness upfront for a clear error message
     const existing = await this.prisma.user.findFirst({
       where: {
-        OR: [{ email: dto.email }, { phone: dto.phone }],
+        OR: [{ email: dto.email }, { phone: normalizedPhone }],
       },
       select: { email: true, phone: true },
     });
@@ -77,7 +85,7 @@ export class AuthService {
         data: {
           fullName: dto.fullName,
           email: dto.email,
-          phone: dto.phone,
+          phone: normalizedPhone,
           passwordHash,
         },
       });
@@ -628,9 +636,15 @@ export class AuthService {
   // ─── Complete Profile (after Google signup) ───────────────────────────────
 
   async completeProfile(userId: string, phone: string) {
+    // Normalize before saving
+    const normalizedPhone = normalizeNigerianPhone(phone);
+    if (!normalizedPhone) {
+      throw new BadRequestException('Enter a valid Nigerian phone number');
+    }
+
     // Check phone not already taken by another user
     const phoneExists = await this.prisma.user.findFirst({
-      where: { phone, NOT: { id: userId } },
+      where: { phone: normalizedPhone, NOT: { id: userId } },
     });
     if (phoneExists) {
       throw new ConflictException('Phone number already in use');
@@ -638,7 +652,7 @@ export class AuthService {
 
     const user = await this.prisma.user.update({
       where: { id: userId },
-      data: { phone },
+      data: { phone: normalizedPhone },
       select: {
         id: true,
         fullName: true,
