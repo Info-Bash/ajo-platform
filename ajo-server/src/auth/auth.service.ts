@@ -32,6 +32,12 @@ function generateOtp(): string {
   return digits;
 }
 
+// Generates a unique 10-digit wallet account number (starts with 8)
+function generateAccountNumber(): string {
+  const suffix = Math.floor(100000000 + Math.random() * 900000000).toString();
+  return `8${suffix}`.slice(0, 10);
+}
+
 @Injectable()
 export class AuthService {
   private readonly logger = new Logger(AuthService.name);
@@ -76,9 +82,18 @@ export class AuthService {
         },
       });
 
+      // Generate unique account number with collision retry
+      let accountNumber = generateAccountNumber();
+      let collision = await tx.wallet.findFirst({ where: { accountNumber } });
+      while (collision) {
+        accountNumber = generateAccountNumber();
+        collision = await tx.wallet.findFirst({ where: { accountNumber } });
+      }
+
       await tx.wallet.create({
         data: {
           userId: newUser.id,
+          accountNumber,
           balanceKobo: 0,
         },
       });
@@ -574,8 +589,14 @@ export class AuthService {
           },
         });
 
+        let accountNumber = generateAccountNumber();
+        let collision = await tx.wallet.findFirst({ where: { accountNumber } });
+        while (collision) {
+          accountNumber = generateAccountNumber();
+          collision = await tx.wallet.findFirst({ where: { accountNumber } });
+        }
         await tx.wallet.create({
-          data: { userId: newUser.id, balanceKobo: 0 },
+          data: { userId: newUser.id, accountNumber, balanceKobo: 0 },
         });
 
         return newUser;

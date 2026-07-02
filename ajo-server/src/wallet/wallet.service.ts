@@ -1,0 +1,295 @@
+import {
+  Injectable,
+  NotFoundException,
+  BadRequestException,
+  Logger,
+} from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
+import { v4 as uuidv4 } from 'uuid';
+import { PrismaService } from '../prisma/prisma.service';
+import { NombaService } from '../nomba/nomba.service';
+import { AppConfig } from '../config/app.config';
+import {
+  FundWalletDto,
+  TransferDto,
+  GetTransactionsDto,
+} from './dto/wallet.dto';
+
+const NAIRA_TO_KOBO = 100;
+const toKobo = (naira: number) => Math.round(naira * NAIRA_TO_KOBO);
+const toNaira = (kobo: number) => kobo / NAIRA_TO_KOBO;
+
+@Injectable()
+export class WalletService {
+  private readonly logger = new Logger(WalletService.name);
+
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly nomba: NombaService,
+    private readonly config: ConfigService<AppConfig>,
+  ) {}
+
+  // ─── Get Wallet ───────────────────────────────────────────────────────────
+
+  async getWallet(userId: string) {
+    const wallet = await this.prisma.wallet.findUnique({
+      where: { userId },
+      select: {
+        id: true,
+        accountNumber: true,
+        balanceKobo: true,
+        createdAt: true,
+      },
+    });
+
+    if (!wallet) throw new NotFoundException('Wallet not found');
+
+    return {
+      id: wallet.id,
+      accountNumber: wallet.accountNumber,
+      balanceKobo: wallet.balanceKobo,
+      balanceNaira: toNaira(wallet.balanceKobo),
+      createdAt: wallet.createdAt,
+    };
+  }
+
+  // ─── Fund Wallet (Nomba Checkout) ─────────────────────────────────────────
+
+  async fundWallet(userId: string, dto: FundWalletDto) {
+    const amountKobo = toKobo(dto.amount);
+
+    const user = await this.prisma.user.findUnique({
+      where: { id: userId },
+      select: { email: true, fullName: true, wallet: { select: { id: true } } },
+    });
+    if (!user?.wallet) throw new NotFoundException('Wallet not found');
+
+    const frontendUrl =
+      process.env.FRONTEND_URL ?? 'https://ajo-app-eta.vercel.app';
+
+    // Unique order reference — we generate it so we can track it in PendingCheckout
+    const orderRef = uuidv4();
+
+    // Create Nomba checkout order
+    const { checkoutLink, orderReference } = await this.nomba.createCheckoutOrder({
+      amountKobo,
+      orderRef,
+      customerEmail: user.email,
+      customerId: userId,
+      callbackUrl: `${frontendUrl}/wallet?status=funded`,
+      tokenizeCard: false,
+      metadata: {
+        userId,
+        walletId: user.wallet.id,
+        type: 'wallet_funding',
+      },
+    });
+
+    // Save PendingCheckout so webhook can match this order back to the wallet
+    await this.prisma.pendingCheckout.create({
+      data: {
+        walletId: user.wallet.id,
+        userId,
+        orderReference,
+        amountKobo,
+        checkoutLink,
+        // Expire after 30 minutes — if user abandons checkout
+        expiresAt: new Date(Date.now() + 30 * 60 * 1000),
+      },
+    });
+
+    this.logger.log(
+      `Checkout order created: userId=${userId} amount=₦${dto.amount} orderRef=${orderReference}`,
+    );
+
+    return {
+      checkoutLink,
+      orderReference,
+      amount: dto.amount,
+      amountKobo,
+    };
+  }
+
+  // ─── Internal Transfer ────────────────────────────────────────────────────
+
+  async transfer(senderUserId: string, dto: TransferDto) {
+    const amountKobo = toKobo(dto.amount);
+
+    // Look up sender wallet
+    const senderWallet = await this.prisma.wallet.findUnique({
+      where: { userId: senderUserId },
+      include: { user: { select: { fullName: true } } },
+    });
+    if (!senderWallet) throw new NotFoundException('Sender wallet not found');
+
+    // Sufficient balance check
+    if (senderWallet.balanceKobo < amountKobo) {
+      throw new BadRequestException(
+        `Insufficient balance. Available: ₦${toNaira(senderWallet.balanceKobo).toFixed(2)}`,
+      );
+    }
+
+    // Look up recipient by account number
+    const recipientWallet = await this.prisma.wallet.findUnique({
+      where: { accountNumber: dto.accountNumber },
+      include: { user: { select: { id: true, fullName: true } } },
+    });
+
+    if (!recipientWallet || !recipientWallet.user) {
+      throw new NotFoundException(
+        'No Ajo account found with that account number',
+      );
+    }
+
+    // Prevent self-transfer
+    if (recipientWallet.userId === senderUserId) {
+      throw new BadRequestException('You cannot transfer to your own wallet');
+    }
+
+    const journalId = `jrnl_trf_${uuidv4()}`;
+    const senderRef = `TRF-SND-${uuidv4().slice(0, 8).toUpperCase()}`;
+    const recipientRef = `TRF-RCV-${uuidv4().slice(0, 8).toUpperCase()}`;
+    const description =
+      dto.description?.trim() ||
+      `Transfer to ${recipientWallet.user.fullName}`;
+
+    await this.prisma.$transaction(async (tx) => {
+      // DEBIT sender
+      await tx.transaction.create({
+        data: {
+          walletId: senderWallet.id,
+          direction: 'DEBIT',
+          type: 'TRANSFER',
+          status: 'SUCCESSFUL',
+          amountKobo,
+          journalId,
+          reference: senderRef,
+          description,
+          counterpartyUserId: recipientWallet.user!.id,
+          counterpartyName: recipientWallet.user!.fullName,
+        },
+      });
+
+      // CREDIT recipient
+      await tx.transaction.create({
+        data: {
+          walletId: recipientWallet.id,
+          direction: 'CREDIT',
+          type: 'TRANSFER',
+          status: 'SUCCESSFUL',
+          amountKobo,
+          journalId,
+          reference: recipientRef,
+          description: `Transfer from ${senderWallet.user.fullName}`,
+          counterpartyUserId: senderUserId,
+          counterpartyName: senderWallet.user.fullName,
+        },
+      });
+
+      // Update balances
+      await tx.wallet.update({
+        where: { id: senderWallet.id },
+        data: { balanceKobo: { decrement: amountKobo } },
+      });
+      await tx.wallet.update({
+        where: { id: recipientWallet.id },
+        data: { balanceKobo: { increment: amountKobo } },
+      });
+    });
+
+    this.logger.log(
+      `Transfer: ₦${dto.amount} from userId=${senderUserId} to accountNo=${dto.accountNumber} journalId=${journalId}`,
+    );
+
+    return {
+      message: `₦${dto.amount.toLocaleString('en-NG')} sent to ${recipientWallet.user.fullName}`,
+      reference: senderRef,
+      amount: dto.amount,
+      recipient: {
+        name: recipientWallet.user.fullName,
+        accountNumber: dto.accountNumber,
+      },
+    };
+  }
+
+  // ─── Transaction History ─────────────────────────────────────────────────
+
+  async getTransactions(userId: string, dto: GetTransactionsDto) {
+    const wallet = await this.prisma.wallet.findUnique({
+      where: { userId },
+      select: { id: true },
+    });
+    if (!wallet) throw new NotFoundException('Wallet not found');
+
+    const page = dto.page ?? 1;
+    const limit = Math.min(dto.limit ?? 20, 100); // cap at 100 per page
+    const skip = (page - 1) * limit;
+
+    const where = {
+      walletId: wallet.id,
+      ...(dto.type && { type: dto.type as never }),
+    };
+
+    const [transactions, total] = await Promise.all([
+      this.prisma.transaction.findMany({
+        where,
+        orderBy: { createdAt: 'desc' },
+        skip,
+        take: limit,
+        select: {
+          id: true,
+          direction: true,
+          type: true,
+          status: true,
+          amountKobo: true,
+          reference: true,
+          description: true,
+          counterpartyName: true,
+          groupId: true,
+          nombaOrderReference: true,
+          createdAt: true,
+        },
+      }),
+      this.prisma.transaction.count({ where }),
+    ]);
+
+    return {
+      data: transactions.map((tx) => ({
+        ...tx,
+        amountNaira: toNaira(tx.amountKobo),
+      })),
+      meta: {
+        total,
+        page,
+        limit,
+        totalPages: Math.ceil(total / limit),
+        hasNextPage: page * limit < total,
+      },
+    };
+  }
+
+  // ─── Lookup account by number (for transfer recipient preview) ────────────
+
+  async lookupAccount(accountNumber: string) {
+    const wallet = await this.prisma.wallet.findUnique({
+      where: { accountNumber },
+      select: {
+        accountNumber: true,
+        user: { select: { fullName: true, avatarUrl: true } },
+      },
+    });
+
+    if (!wallet?.user) {
+      throw new NotFoundException(
+        'No Ajo account found with that account number',
+      );
+    }
+
+    // Return minimal info — just enough for the "confirm recipient" UI step
+    return {
+      accountNumber: wallet.accountNumber,
+      name: wallet.user.fullName,
+      avatarUrl: wallet.user.avatarUrl,
+    };
+  }
+}
