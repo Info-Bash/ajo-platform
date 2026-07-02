@@ -34,9 +34,7 @@ async function bootstrap() {
     .setTitle('Ajo API')
     .setDescription(
       `REST API for the Ajo rotating savings circle (ajo) platform.\n\n` +
-      `**Authentication:** Most endpoints require a Bearer JWT. Obtain a token via ` +
-      `\`POST /auth/login\`, \`POST /auth/verify-email\`, or \`POST /auth/google\`, ` +
-      `then click **Authorize** and enter: \`Bearer <your_token>\`.`,
+      `**Authentication:** Most endpoints require a Bearer JWT. Obtain a token via  ` + `\`POST /auth/login\`, \`POST /auth/verify-email\`, or \`POST /auth/google\`, ` + `then click **Authorize** and enter: \`Bearer <your_token>\`.`,
     )
     .setVersion('1.0')
     .addBearerAuth(
@@ -45,7 +43,14 @@ async function bootstrap() {
     )
     .addServer('https://ajo-server.onrender.com', 'Production')
     .addServer('http://localhost:3001', 'Local development')
-    .addTag('Auth', 'Registration, login, email verification, password reset, Google OAuth')
+    .addTag(
+      'Auth',
+      'Registration, login, email verification, password reset, Google OAuth',
+    )
+    .addTag(
+      'Wallet',
+      'Balance, funding via Nomba checkout, internal transfers, transaction history',
+    )
     .addTag('Webhooks', 'Inbound Nomba payment event callbacks')
     .build();
 
@@ -54,7 +59,7 @@ async function bootstrap() {
   // Available at /api/v1/docs
   SwaggerModule.setup('api/v1/docs', app, document, {
     swaggerOptions: {
-      persistAuthorization: true,   // keeps the JWT filled in across page refreshes
+      persistAuthorization: true, // keeps the JWT filled in across page refreshes
       tagsSorter: 'alpha',
       operationsSorter: 'alpha',
     },
