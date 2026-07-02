@@ -6,7 +6,7 @@ import Link from "next/link"
 
 import { Button } from "@/components/ui/button"
 import { Skeleton } from "@/components/ui/skeleton"
-import { useDashboard } from "@/hooks/use-dashboard"
+import { useWallet } from "@/hooks/use-wallet"
 import { cn } from "@/lib/utils"
 
 function formatNaira(amount: number) {
@@ -18,14 +18,12 @@ function formatNaira(amount: number) {
 }
 
 export function WalletCard() {
-  const { data, isPending, isError } = useDashboard()
+  const { data: wallet, isPending, isError } = useWallet()
   const [balanceVisible, setBalanceVisible] = useState(true)
   const [copied, setCopied] = useState(false)
 
   if (isPending) return <WalletCardSkeleton />
-  if (isError || !data) return null
-
-  const { wallet } = data
+  if (isError || !wallet) return null
 
   function copyAccountNumber() {
     navigator.clipboard.writeText(wallet.accountNumber)

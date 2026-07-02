@@ -4,14 +4,13 @@ import Link from "next/link"
 import {
   ArrowDownLeft,
   ArrowUpRight,
-  ArrowLeftRight,
   Wallet,
   TrendingUp,
   RefreshCw,
 } from "lucide-react"
 
 import { Skeleton } from "@/components/ui/skeleton"
-import { useDashboard } from "@/hooks/use-dashboard"
+import { useTransactions } from "@/hooks/use-wallet"
 import { cn } from "@/lib/utils"
 import type { Transaction, TransactionType } from "@/lib/types"
 
@@ -25,6 +24,7 @@ const TYPE_CONFIG: Record<
   transfer_out:  { icon: ArrowUpRight,    label: "Sent",         positive: false },
   contribution:  { icon: Wallet,          label: "Contribution", positive: false },
   payout:        { icon: TrendingUp,      label: "Payout",       positive: true  },
+  reversal:      { icon: RefreshCw,       label: "Reversal",     positive: true  },
 }
 
 function formatNaira(amount: number) {
@@ -93,11 +93,11 @@ function TransactionRow({ tx }: { tx: Transaction }) {
 }
 
 export function ActivityFeed() {
-  const { data, isPending } = useDashboard()
+  const { data, isPending, isError } = useTransactions({ limit: 5 })
 
   if (isPending) return <ActivityFeedSkeleton />
 
-  const transactions = data?.recentTransactions ?? []
+  const transactions = data?.transactions ?? []
 
   return (
     <section>
@@ -111,7 +111,12 @@ export function ActivityFeed() {
         </Link>
       </div>
 
-      {transactions.length > 0 ? (
+      {isError ? (
+        <div className="flex flex-col items-center gap-2 rounded-xl border border-dashed border-border bg-card py-8 text-center">
+          <RefreshCw className="size-5 text-text-muted" />
+          <p className="text-sm text-text-muted">Couldn&apos;t load activity</p>
+        </div>
+      ) : transactions.length > 0 ? (
         <div className="rounded-xl border border-border bg-card px-4 divide-y divide-border">
           {transactions.map((tx) => (
             <TransactionRow key={tx.id} tx={tx} />

@@ -26,6 +26,7 @@ export type TransactionType =
   | "transfer_out"
   | "contribution"
   | "payout"
+  | "reversal"
 
 export type TransactionStatus = "pending" | "successful" | "failed" | "reversed"
 
