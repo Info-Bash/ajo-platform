@@ -155,6 +155,7 @@ export class WalletService {
     const description =
       dto.description?.trim() ||
       `Transfer to ${recipientWallet.user.fullName}`;
+    const senderFullName = senderWallet.user.fullName;
 
     await this.prisma.$transaction(async (tx) => {
       // DEBIT sender
@@ -183,9 +184,9 @@ export class WalletService {
           amountKobo,
           journalId,
           reference: recipientRef,
-          description: `Transfer from ${senderWallet.user.fullName}`,
+          description: `Transfer from ${senderFullName}`,
           counterpartyUserId: senderUserId,
-          counterpartyName: senderWallet.user.fullName,
+          counterpartyName: senderFullName,
         },
       });
 
