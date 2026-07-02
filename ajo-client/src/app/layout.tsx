@@ -17,7 +17,7 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "Ajo — Save Together",
+  title: "Ajo",
   description: "Digital savings circles, built on trust.",
 };
 
