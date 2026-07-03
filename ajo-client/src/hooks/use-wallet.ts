@@ -106,10 +106,11 @@ function mapTransaction(raw: BackendTransaction): Transaction {
 
 // ─── Wallet balance ─────────────────────────────────────────────────────────
 
-export function useWallet() {
+export function useWallet(options: { refetchInterval?: number | false } = {}) {
   return useQuery<Wallet>({
     queryKey: queryKeys.wallet(),
     queryFn: () => apiClient.get<BackendWallet>("/wallet").then(mapWallet),
+    refetchInterval: options.refetchInterval,
   })
 }
 
@@ -120,6 +121,7 @@ interface UseTransactionsOptions {
   page?: number
   /** Backend filter type, e.g. "DEPOSIT" — omit to return all types */
   type?: BackendTransactionType
+  refetchInterval?: number | false
 }
 
 interface TransactionsResult {
@@ -129,7 +131,7 @@ interface TransactionsResult {
 }
 
 export function useTransactions(options: UseTransactionsOptions = {}) {
-  const { limit = 20, page = 1, type } = options
+  const { limit = 20, page = 1, type, refetchInterval } = options
 
   return useQuery<TransactionsResult>({
     queryKey: [...queryKeys.transactions(), { limit, page, type }],
@@ -150,6 +152,7 @@ export function useTransactions(options: UseTransactionsOptions = {}) {
         totalPages: res.meta.totalPages,
       }
     },
+    refetchInterval,
   })
 }
 
