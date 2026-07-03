@@ -16,6 +16,7 @@ export const validationSchema = Joi.object({
   NOMBA_SECRET_KEY: Joi.string().allow('').default(''),
   NOMBA_BASE_URL: Joi.string().default('https://api.nomba.com/v1'),
   NOMBA_ACCOUNT_ID: Joi.string().allow('').default(''),
+  NOMBA_SUB_ACCOUNT_ID: Joi.string().allow('').default(''),
 
   MAIL_HOST: Joi.string().allow('').default(''),
   MAIL_PORT: Joi.number().default(587),
@@ -44,6 +45,7 @@ export interface AppConfig {
     secretKey: string;
     baseUrl: string;
     accountId: string;
+    subAccountId: string;
   };
   googleClientId: string;
   googleClientSecret: string;
@@ -66,6 +68,7 @@ export const configFactory = (): AppConfig => ({
     secretKey: process.env.NOMBA_SECRET_KEY ?? '',
     baseUrl: process.env.NOMBA_BASE_URL ?? 'https://api.nomba.com/v1',
     accountId: process.env.NOMBA_ACCOUNT_ID ?? '',
+    subAccountId: process.env.NOMBA_SUB_ACCOUNT_ID ?? '',
   },
   googleClientId: process.env.GOOGLE_CLIENT_ID ?? '',
   googleClientSecret: process.env.GOOGLE_CLIENT_SECRET ?? '',

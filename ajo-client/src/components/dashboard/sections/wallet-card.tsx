@@ -25,8 +25,10 @@ export function WalletCard() {
   if (isPending) return <WalletCardSkeleton />
   if (isError || !wallet) return null
 
+  const accountNumber = wallet.accountNumber
+
   function copyAccountNumber() {
-    navigator.clipboard.writeText(wallet.accountNumber)
+    navigator.clipboard.writeText(accountNumber)
     setCopied(true)
     setTimeout(() => setCopied(false), 2000)
   }

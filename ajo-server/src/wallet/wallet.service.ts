@@ -73,11 +73,14 @@ export class WalletService {
     // Create Nomba checkout order
     const { checkoutLink, orderReference } = await this.nomba.createCheckoutOrder({
       amountKobo,
+      currency: 'NGN',
       orderRef,
       customerEmail: user.email,
       customerId: userId,
+      accountId: this.config.get('nomba').subAccountId,
+      allowedPaymentMethods: ['Card', 'Transfer'],
       callbackUrl: `${frontendUrl}/wallet?status=funded`,
-      tokenizeCard: false,
+      tokenizeCard: true, // save card for future contributions
       metadata: {
         userId,
         walletId: user.wallet.id,
@@ -153,8 +156,7 @@ export class WalletService {
     const senderRef = `TRF-SND-${uuidv4().slice(0, 8).toUpperCase()}`;
     const recipientRef = `TRF-RCV-${uuidv4().slice(0, 8).toUpperCase()}`;
     const description =
-      dto.description?.trim() ||
-      `Transfer to ${recipientWallet.user.fullName}`;
+      dto.description?.trim() || `Transfer to ${recipientWallet.user.fullName}`;
     const senderFullName = senderWallet.user.fullName;
 
     await this.prisma.$transaction(async (tx) => {

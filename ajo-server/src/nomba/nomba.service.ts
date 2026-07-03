@@ -22,6 +22,8 @@ interface NombaCheckoutOrderRequest {
   callbackUrl: string;
   customerEmail: string;
   customerId: string; // our internal userId
+  accountId: string; // Nomba sub accountId (from config)
+  allowedPaymentMethods?: string[];
   tokenizeCard?: boolean; // true = save card for future contributions
   orderMetaData?: Record<string, string>;
 }
@@ -183,17 +185,23 @@ export class NombaService {
    * After payment, Nomba fires a payment_success webhook to our endpoint.
    *
    * @param params.amountKobo   Amount in kobo (our internal unit)
+   * @param params.currency     Currency code (e.g., 'NGN')
    * @param params.orderRef     Our internal reference (UUID) — stored in PendingCheckout
    * @param params.customerEmail User's email (Nomba sends receipt to this address)
+   * @param params.allowedPaymentMethods: ['Card', 'Transfer'] // optional, defaults to all
    * @param params.customerId   Our internal user ID
+   * @param params.accountId    Nomba sub accountId
    * @param params.callbackUrl  Where Nomba redirects after payment (frontend page)
    * @param params.tokenizeCard Whether to save the card for future charges
    */
   async createCheckoutOrder(params: {
     amountKobo: number;
+    currency?: 'NGN';
     orderRef: string;
     customerEmail: string;
+    allowedPaymentMethods?: string[];
     customerId: string;
+    accountId: string;
     callbackUrl: string;
     tokenizeCard?: boolean;
     metadata?: Record<string, string>;
@@ -207,10 +215,12 @@ export class NombaService {
     const body: NombaCheckoutOrderRequest = {
       orderReference: params.orderRef,
       amount: amountNaira,
-      currency: 'NGN',
+      currency: params.currency ?? 'NGN',
       callbackUrl: params.callbackUrl,
       customerEmail: params.customerEmail,
       customerId: params.customerId,
+      accountId: params.accountId,
+      allowedPaymentMethods: params.allowedPaymentMethods,
       tokenizeCard: params.tokenizeCard ?? false,
       orderMetaData: params.metadata,
     };
