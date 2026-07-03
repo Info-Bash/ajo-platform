@@ -1,5 +1,5 @@
-import { useQuery, useMutation } from "@tanstack/react-query"
-import { apiClient } from "@/lib/api-client"
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query"
+import { apiClient, ApiError } from "@/lib/api-client"
 import { queryKeys } from "@/hooks/use-dashboard"
 import type { Wallet, Transaction, TransactionType, TransactionStatus } from "@/lib/types"
 
@@ -164,5 +164,61 @@ export function useTransactions(options: UseTransactionsOptions = {}) {
 export function useFundWallet() {
   return useMutation<FundWalletResponse, Error, { amount: number }>({
     mutationFn: (data) => apiClient.post<FundWalletResponse>("/wallet/fund", data),
+  })
+}
+
+// ─── Lookup account (recipient preview before transfer) ────────────────────
+
+interface LookupAccountResponse {
+  accountNumber: string
+  name: string
+  avatarUrl: string | null
+}
+
+/**
+ * Looks up an Ajo account by its 10-digit account number so the transfer
+ * flow can show a "confirm recipient" step before money moves.
+ * Only enabled once the account number is a full 10 digits.
+ */
+export function useLookupAccount(accountNumber: string) {
+  const enabled = /^\d{10}$/.test(accountNumber)
+
+  return useQuery<LookupAccountResponse>({
+    queryKey: ["wallet-lookup", accountNumber],
+    queryFn: () =>
+      apiClient.get<LookupAccountResponse>(`/wallet/lookup/${accountNumber}`),
+    enabled,
+    retry: false,
+    staleTime: 30_000,
+  })
+}
+
+// ─── Transfer to another Ajo user ───────────────────────────────────────────
+
+interface TransferResponse {
+  message: string
+  reference: string
+  amount: number
+  recipient: { name: string; accountNumber: string }
+}
+
+interface TransferPayload {
+  accountNumber: string
+  amount: number
+  description?: string
+}
+
+export function useTransfer() {
+  const queryClient = useQueryClient()
+
+  return useMutation<TransferResponse, ApiError, TransferPayload>({
+    mutationFn: (data) => apiClient.post<TransferResponse>("/wallet/transfer", data),
+    onSuccess: () => {
+      // Balance and history both changed — refetch rather than hand-patch
+      // the cache, since the backend is the source of truth for the ledger.
+      queryClient.invalidateQueries({ queryKey: queryKeys.wallet() })
+      queryClient.invalidateQueries({ queryKey: queryKeys.transactions() })
+      queryClient.invalidateQueries({ queryKey: queryKeys.dashboard() })
+    },
   })
 }

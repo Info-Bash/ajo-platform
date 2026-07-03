@@ -17,7 +17,7 @@
 import * as React from "react"
 import Link from "next/link"
 import { useRouter, useSearchParams } from "next/navigation"
-import { ArrowLeft, CheckCircle2, Loader2, Plus, RefreshCw } from "lucide-react"
+import { ArrowLeft, ArrowLeftRight, ArrowUpRight, CheckCircle2, Loader2, Plus, RefreshCw } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
 import { Skeleton } from "@/components/ui/skeleton"
@@ -125,7 +125,7 @@ function WalletPageInner() {
           </div>
         )}
 
-        <div className="flex items-center justify-between">
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <div>
             <h1 className="text-xl font-semibold text-foreground">Wallet</h1>
             {wallet.data && (
@@ -137,12 +137,26 @@ function WalletPageInner() {
               </p>
             )}
           </div>
-          <Button asChild size="sm">
-            <Link href="/wallet/fund">
-              <Plus className="size-4" />
-              Fund
-            </Link>
-          </Button>
+          <div className="flex gap-2">
+            <Button asChild size="sm" variant="outline" className="flex-1 sm:flex-initial">
+              <Link href="/wallet/transfer">
+                <ArrowLeftRight className="size-4" />
+                Transfer
+              </Link>
+            </Button>
+            <Button asChild size="sm" variant="outline" className="flex-1 sm:flex-initial">
+              <Link href="/wallet/withdraw">
+                <ArrowUpRight className="size-4" />
+                Withdraw
+              </Link>
+            </Button>
+            <Button asChild size="sm" className="flex-1 sm:flex-initial">
+              <Link href="/wallet/fund">
+                <Plus className="size-4" />
+                Fund
+              </Link>
+            </Button>
+          </div>
         </div>
 
         <section>

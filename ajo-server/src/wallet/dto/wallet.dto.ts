@@ -34,11 +34,11 @@ export class TransferDto {
 
   @ApiProperty({
     example: 2000,
-    description: 'Amount in **Naira** to transfer. Minimum ₦1.',
-    minimum: 1,
+    description: 'Amount in **Naira** to transfer. Minimum ₦20.',
+    minimum: 20,
   })
   @IsNumber()
-  @Min(1, { message: 'Amount must be at least ₦1' })
+  @Min(20, { message: 'Amount must be at least ₦20' })
   amount: number;
 
   @ApiPropertyOptional({
