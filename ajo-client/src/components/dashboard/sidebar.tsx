@@ -2,11 +2,16 @@
 
 import Link from "next/link"
 import { usePathname } from "next/navigation"
+import { LogOut } from "lucide-react"
 
 import { cn } from "@/lib/utils"
 import { NAV_ITEMS } from "@/components/dashboard/nav-items"
 
-export function Sidebar() {
+interface SidebarProps {
+  onLogout: () => void
+}
+
+export function Sidebar({ onLogout }: SidebarProps) {
   const pathname = usePathname()
 
   return (
@@ -40,9 +45,19 @@ export function Sidebar() {
         })}
       </nav>
 
-      {/* Bottom user hint */}
-      <div className="border-t border-border p-3">
-        <p className="px-3 text-xs text-text-muted">Ajo &copy; {new Date().getFullYear()}</p>
+      {/* Bottom: logout + copyright */}
+      <div className="flex flex-col gap-1 border-t border-border p-3">
+        <button
+          type="button"
+          onClick={onLogout}
+          className="flex w-full items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium text-text-secondary transition-colors hover:bg-status-overdue-bg hover:text-status-overdue-text"
+        >
+          <LogOut className="size-4 shrink-0" />
+          Log out
+        </button>
+        <p className="px-3 pt-1 text-xs text-text-muted">
+          Ajo &copy; {new Date().getFullYear()}
+        </p>
       </div>
     </aside>
   )

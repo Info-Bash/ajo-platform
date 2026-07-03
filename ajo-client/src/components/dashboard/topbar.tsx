@@ -11,7 +11,6 @@ import {
   SheetContent,
   SheetHeader,
   SheetTitle,
-  SheetTrigger,
 } from "@/components/ui/sheet"
 import {
   Avatar,
@@ -27,7 +26,10 @@ interface TopbarProps {
     avatarUrl?: string
   }
   notificationCount?: number
-  onLogout?: () => void
+  /** Controlled open state for the mobile drawer — managed by parent */
+  mobileMenuOpen: boolean
+  onMobileMenuOpen: () => void
+  onMobileMenuClose: () => void
 }
 
 function initials(name: string) {
@@ -35,10 +37,15 @@ function initials(name: string) {
   return ((parts[0]?.[0] ?? "") + (parts[1]?.[0] ?? "")).toUpperCase()
 }
 
-export function Topbar({ user, notificationCount = 0, onLogout }: TopbarProps) {
+export function Topbar({
+  user,
+  notificationCount = 0,
+  mobileMenuOpen,
+  onMobileMenuOpen,
+  onMobileMenuClose,
+}: TopbarProps) {
   const pathname = usePathname()
 
-  // Derive page title from current route
   const currentNav = NAV_ITEMS.find(
     ({ href }) => pathname === href || pathname.startsWith(href + "/")
   )
@@ -46,14 +53,20 @@ export function Topbar({ user, notificationCount = 0, onLogout }: TopbarProps) {
 
   return (
     <header className="fixed inset-x-0 top-0 z-30 flex h-14 items-center border-b border-border bg-bg-card px-4 lg:left-56 lg:px-6">
+
       {/* Mobile: drawer trigger + logo */}
       <div className="flex items-center gap-3 lg:hidden">
-        <Sheet>
-          <SheetTrigger asChild>
-            <Button variant="ghost" size="icon" aria-label="Open menu">
-              <LayoutGrid className="size-5" />
-            </Button>
-          </SheetTrigger>
+        <Button
+          variant="ghost"
+          size="icon"
+          aria-label="Open menu"
+          onClick={onMobileMenuOpen}
+        >
+          <LayoutGrid className="size-5" />
+        </Button>
+
+        {/* Mobile Sheet — controlled open state */}
+        <Sheet open={mobileMenuOpen} onOpenChange={(open) => !open && onMobileMenuClose()}>
           <SheetContent side="left" className="w-64 p-0" showCloseButton={false}>
             <SheetHeader className="border-b border-border px-5 py-3.5">
               <SheetTitle className="text-primary">Ajo</SheetTitle>
@@ -66,6 +79,7 @@ export function Topbar({ user, notificationCount = 0, onLogout }: TopbarProps) {
                   <Link
                     key={href}
                     href={href}
+                    onClick={onMobileMenuClose}  // close on nav item click
                     className={cn(
                       "flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-colors",
                       active
@@ -84,12 +98,18 @@ export function Topbar({ user, notificationCount = 0, onLogout }: TopbarProps) {
               {user && (
                 <div className="flex items-center gap-3">
                   <Avatar size="sm">
-                    {user.avatarUrl && <AvatarImage src={user.avatarUrl} alt={user.name} />}
+                    {user.avatarUrl && (
+                      <AvatarImage src={user.avatarUrl} alt={user.name} />
+                    )}
                     <AvatarFallback>{initials(user.name)}</AvatarFallback>
                   </Avatar>
                   <div className="min-w-0">
-                    <p className="truncate text-sm font-medium text-foreground">{user.name}</p>
-                    <p className="truncate text-xs text-text-muted">{user.email}</p>
+                    <p className="truncate text-sm font-medium text-foreground">
+                      {user.name}
+                    </p>
+                    <p className="truncate text-xs text-text-muted">
+                      {user.email}
+                    </p>
                   </div>
                 </div>
               )}
@@ -105,7 +125,7 @@ export function Topbar({ user, notificationCount = 0, onLogout }: TopbarProps) {
         {pageTitle}
       </h1>
 
-      {/* Right side: notifications, messages, avatar */}
+      {/* Right side: notifications, messages, avatar — logout removed */}
       <div className="ml-auto flex items-center gap-1">
         <Button variant="ghost" size="icon" aria-label="Messages" asChild>
           <Link href="/messages">
@@ -128,12 +148,14 @@ export function Topbar({ user, notificationCount = 0, onLogout }: TopbarProps) {
           </Link>
         </Button>
 
-        <button type="button" onClick={onLogout} className="hidden lg:flex items-center gap-1 text-xs text-text-muted hover:text-destructive transition-colors" aria-label="Log out">
-          <span>Logout</span>
-        </button>
         <Link href="/settings/profile" aria-label="Profile settings">
-          <Avatar size="sm" className="ml-1 cursor-pointer ring-2 ring-transparent transition-all hover:ring-primary/30">
-            {user?.avatarUrl && <AvatarImage src={user.avatarUrl} alt={user?.name ?? "User"} />}
+          <Avatar
+            size="sm"
+            className="ml-1 cursor-pointer ring-2 ring-transparent transition-all hover:ring-primary/30"
+          >
+            {user?.avatarUrl && (
+              <AvatarImage src={user.avatarUrl} alt={user?.name ?? "User"} />
+            )}
             <AvatarFallback>{user ? initials(user.name) : "?"}</AvatarFallback>
           </Avatar>
         </Link>
