@@ -1,5 +1,8 @@
-// Extended to include fields used in checkout webhook payloads
-// aliasAccountReference carries our orderReference back from Nomba
+// Checkout order webhook payload types.
+// Our orderReference comes back at data.order.orderReference (NOT
+// data.transaction.aliasAccountReference — that field belongs to a
+// different Nomba product, virtual-account transfers, which this app
+// doesn't use).
 export type NombaEventType =
   | 'payment_success'
   | 'payout_success'
@@ -20,7 +23,6 @@ export interface NombaTerminal {
 }
 
 export interface NombaTransaction {
-  aliasAccountReference?: string; // Our orderReference, returned by Nomba
   transactionId: string;
   type: string;
   originatingFrom: string;
@@ -59,11 +61,37 @@ export interface NombaCustomer {
   recipientName: string;
 }
 
+export interface NombaOrder {
+  amount: number;
+  orderId: string;
+  accountId?: string;
+  cardType?: string;
+  cardLast4Digits?: string;
+  cardCurrency?: string;
+  customerEmail?: string;
+  customerId?: string;
+  isTokenizedCardPayment?: string;
+  orderReference: string; // Our orderReference — this is the real field, not transaction.aliasAccountReference
+  paymentMethod: string;
+  callbackUrl?: string;
+  currency: string;
+}
+
+export interface NombaTokenizedCardData {
+  tokenKey: string;
+  cardType: string;
+  tokenExpiryYear: string;
+  tokenExpiryMonth: string;
+  cardPan: string;
+}
+
 export interface NombaWebhookData {
   merchant: NombaMerchant;
   terminal: NombaTerminal;
   transaction: NombaTransaction;
   customer: NombaCustomer;
+  order?: NombaOrder;
+  tokenizedCardData?: NombaTokenizedCardData;
 }
 
 export interface NombaWebhookPayload {

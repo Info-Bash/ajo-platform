@@ -42,10 +42,12 @@ export class WebhooksService {
       return;
     }
 
-    // Our orderReference comes back in aliasAccountReference for checkout payments
-    const orderReference = transaction.aliasAccountReference;
+    // Our orderReference comes back in data.order.orderReference for
+    // checkout order payments (NOT transaction.aliasAccountReference —
+    // see nomba-webhook.types.ts for why).
+    const orderReference = data.order?.orderReference;
     if (!orderReference) {
-      this.logger.warn(`payment_success missing aliasAccountReference requestId=${requestId}`);
+      this.logger.warn(`payment_success missing order.orderReference requestId=${requestId}`);
       return;
     }
 
@@ -109,19 +111,40 @@ export class WebhooksService {
 
   private async handleFailed(payload: NombaWebhookPayload): Promise<void> {
     const nombaReference = payload.data.transaction.transactionId;
-    const orderReference = payload.data.transaction.aliasAccountReference;
+    const orderReference = payload.data.order?.orderReference;
 
     if (orderReference) {
       await this.prisma.pendingCheckout.delete({ where: { orderReference } }).catch(() => {});
     }
 
     const txn = await this.prisma.transaction.findFirst({ where: { nombaReference } });
-    if (txn) {
-      await this.prisma.transaction.update({
-        where: { id: txn.id },
-        data: { status: 'FAILED', nombaWebhookData: payload as object },
-      });
+    if (!txn) {
+      this.logger.warn(`Transaction failed: ${payload.event_type} nombaRef=${nombaReference} (no matching txn)`);
+      return;
     }
+
+    if (txn.type === 'WITHDRAWAL' && txn.status === 'PENDING') {
+      // Withdrawal was debited upfront when requested (see wallet.service.ts
+      // withdraw()) — the bank payout failed, so that money never left and
+      // must go back into the user's wallet.
+      await this.prisma.$transaction(async (tx) => {
+        await tx.transaction.update({
+          where: { id: txn.id },
+          data: { status: 'FAILED', nombaWebhookData: payload as object },
+        });
+        await tx.wallet.update({
+          where: { id: txn.walletId },
+          data: { balanceKobo: { increment: txn.amountKobo } },
+        });
+      });
+      this.logger.warn(`Payout failed, refunded walletId=${txn.walletId} amountKobo=${txn.amountKobo}`);
+      return;
+    }
+
+    await this.prisma.transaction.update({
+      where: { id: txn.id },
+      data: { status: 'FAILED', nombaWebhookData: payload as object },
+    });
     this.logger.warn(`Transaction failed: ${payload.event_type} nombaRef=${nombaReference}`);
   }
 

@@ -11,7 +11,7 @@ interface NombaTokenResponse {
   data: {
     access_token: string;
     refresh_token: string;
-    expiresAt: number; // confirm format with Nomba: epoch ms vs seconds vs ISO
+    expiresAt: string; // ISO 8601 UTC, e.g. "2026-01-01T12:00:00Z" — confirmed against Nomba docs
   };
 }
 
@@ -22,9 +22,8 @@ interface NombaCheckoutOrderRequest {
   callbackUrl: string;
   customerEmail: string;
   customerId: string; // our internal userId
-  accountId: string; // Nomba sub accountId (from config)
+  accountId?: string; // Nomba SUB-account to credit — omit to credit the parent account (our default case)
   allowedPaymentMethods?: string[];
-  tokenizeCard?: boolean; // true = save card for future contributions
   orderMetaData?: Record<string, string>;
 }
 
@@ -43,7 +42,7 @@ export class NombaService {
 
   private cachedToken: string | null = null;
   private cachedRefreshToken: string | null = null;
-  private tokenExpiresAt: number = 0; // Unix timestamp ms
+  private tokenExpiresAt: number = 0; // Unix timestamp ms — parsed from Nomba's ISO string on receipt
 
   constructor(private readonly config: ConfigService<AppConfig>) {}
 
@@ -102,7 +101,8 @@ export class NombaService {
     const { access_token, refresh_token, expiresAt } = payload.data;
     this.cachedToken = access_token;
     this.cachedRefreshToken = refresh_token;
-    this.tokenExpiresAt = expiresAt; // adjust here once you confirm the exact unit
+    // expiresAt is an ISO 8601 string (e.g. "2026-01-01T12:00:00Z") — parse to epoch ms
+    this.tokenExpiresAt = new Date(expiresAt).getTime();
 
     this.logger.log('Nomba access token issued');
     return this.cachedToken;
@@ -140,7 +140,7 @@ export class NombaService {
     const { access_token, refresh_token, expiresAt } = payload.data;
     this.cachedToken = access_token;
     this.cachedRefreshToken = refresh_token ?? this.cachedRefreshToken;
-    this.tokenExpiresAt = expiresAt;
+    this.tokenExpiresAt = new Date(expiresAt).getTime();
 
     this.logger.log('Nomba access token refreshed');
     return this.cachedToken;
@@ -177,6 +177,7 @@ export class NombaService {
     this.tokenExpiresAt = 0;
     this.logger.log('Nomba access token revoked');
   }
+
   // ─── Checkout Order ───────────────────────────────────────────────────────
 
   /**
@@ -188,9 +189,11 @@ export class NombaService {
    * @param params.currency     Currency code (e.g., 'NGN')
    * @param params.orderRef     Our internal reference (UUID) — stored in PendingCheckout
    * @param params.customerEmail User's email (Nomba sends receipt to this address)
-   * @param params.allowedPaymentMethods: ['Card', 'Transfer'] // optional, defaults to all
+   * @param params.allowedPaymentMethods e.g. ['Card', 'Transfer'] — omit to show all available methods
    * @param params.customerId   Our internal user ID
-   * @param params.accountId    Nomba sub accountId
+   * @param params.accountId    Nomba SUB-account to credit — only pass this if you actually
+   *                            want funds routed to a sub-account instead of the parent account.
+   *                            Omit for normal wallet funding.
    * @param params.callbackUrl  Where Nomba redirects after payment (frontend page)
    * @param params.tokenizeCard Whether to save the card for future charges
    */
@@ -201,7 +204,7 @@ export class NombaService {
     customerEmail: string;
     allowedPaymentMethods?: string[];
     customerId: string;
-    accountId: string;
+    accountId?: string;
     callbackUrl: string;
     tokenizeCard?: boolean;
     metadata?: Record<string, string>;
@@ -212,17 +215,18 @@ export class NombaService {
     // Nomba expects amount as a decimal string: 10000 kobo → "100.00"
     const amountNaira = (params.amountKobo / 100).toFixed(2);
 
-    const body: NombaCheckoutOrderRequest = {
+    const order: NombaCheckoutOrderRequest = {
       orderReference: params.orderRef,
       amount: amountNaira,
       currency: params.currency ?? 'NGN',
       callbackUrl: params.callbackUrl,
       customerEmail: params.customerEmail,
       customerId: params.customerId,
-      accountId: params.accountId,
       allowedPaymentMethods: params.allowedPaymentMethods,
-      tokenizeCard: params.tokenizeCard ?? false,
       orderMetaData: params.metadata,
+      // Only set when the caller explicitly wants sub-account routing —
+      // omitted entirely otherwise, so Nomba defaults to crediting the parent account.
+      ...(params.accountId ? { accountId: params.accountId } : {}),
     };
 
     const response = await fetch(`${baseUrl}/checkout/order`, {
@@ -232,7 +236,15 @@ export class NombaService {
         'Content-Type': 'application/json',
         'accountId': accountId,
       },
-      body: JSON.stringify({ order: body }),
+      body: JSON.stringify({
+        order,
+        // tokenizeCard is top-level, a sibling of `order` — NOT nested inside
+        // it. Confirmed against Nomba's own "Top-level fields" table (order,
+        // tokenizeCard, meta are siblings); their inline JS example
+        // contradicts this, but the table + generated request schema agree
+        // with each other and match every real request example in the docs.
+        tokenizeCard: params.tokenizeCard ?? false,
+      }),
     });
 
     if (!response.ok) {
