@@ -2,7 +2,7 @@
 
 import Link from "next/link"
 import { usePathname } from "next/navigation"
-import { Bell, MessageCircle, LayoutGrid } from "lucide-react"
+import { Bell, MessageCircle, LayoutGrid, LogOut } from "lucide-react"
 
 import { cn } from "@/lib/utils"
 import { Button } from "@/components/ui/button"
@@ -30,6 +30,7 @@ interface TopbarProps {
   mobileMenuOpen: boolean
   onMobileMenuOpen: () => void
   onMobileMenuClose: () => void
+  onLogout: () => void
 }
 
 function initials(name: string) {
@@ -43,6 +44,7 @@ export function Topbar({
   mobileMenuOpen,
   onMobileMenuOpen,
   onMobileMenuClose,
+  onLogout,
 }: TopbarProps) {
   const pathname = usePathname()
 
@@ -94,9 +96,9 @@ export function Topbar({
               })}
             </nav>
 
-            <div className="border-t border-border p-4">
+            <div className="flex flex-col gap-2 border-t border-border p-4">
               {user && (
-                <div className="flex items-center gap-3">
+                <div className="flex items-center gap-3 mb-2">
                   <Avatar size="sm">
                     {user.avatarUrl && (
                       <AvatarImage src={user.avatarUrl} alt={user.name} />
@@ -113,6 +115,14 @@ export function Topbar({
                   </div>
                 </div>
               )}
+              <button
+                type="button"
+                onClick={() => { onMobileMenuClose(); onLogout(); }}
+                className="flex w-full items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium text-text-secondary transition-colors hover:bg-status-overdue-bg hover:text-status-overdue-text"
+              >
+                <LogOut className="size-4 shrink-0" />
+                Log out
+              </button>
             </div>
           </SheetContent>
         </Sheet>

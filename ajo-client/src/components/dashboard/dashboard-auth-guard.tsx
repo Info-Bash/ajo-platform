@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useCallback } from "react"
 import { useAuth } from "@/providers/auth-provider"
 import { useSwipe } from "@/hooks/use-swipe"
 import { Sidebar } from "@/components/dashboard/sidebar"
@@ -15,14 +15,21 @@ export function DashboardAuthGuard({
   const { user, isLoading, logout } = useAuth()
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
 
-  // Swipe gestures — attach to the main content area
-  // Swipe right → open drawer, swipe left → close drawer
-  // Only meaningful on mobile (lg: sidebar is always visible)
-  const swipeRef = useSwipe<HTMLDivElement>({
-    onSwipeRight: () => setMobileMenuOpen(true),
-    onSwipeLeft: () => setMobileMenuOpen(false),
-    threshold: 60,          // require intentional 60px horizontal swipe
-    maxVerticalDrift: 80,   // ignore if user is mostly scrolling vertically
+  // Stable callbacks — useCallback prevents useSwipe's effect from
+  // tearing down and re-adding document listeners on every render
+  const openMenu = useCallback(() => setMobileMenuOpen(true), [])
+  const closeMenu = useCallback(() => setMobileMenuOpen(false), [])
+
+  // Listen on document so swipe works even when Sheet overlay is active
+  useSwipe({
+    onSwipeRight: openMenu,
+    onSwipeLeft: closeMenu,
+    threshold: 50,
+    maxVerticalDrift: 80,
+    // Only enable on mobile — pointless overhead on desktop where
+    // the sidebar is always visible. We can't use a media query here
+    // (SSR), so we always enable and let the gesture be harmless on desktop.
+    enabled: true,
   })
 
   if (isLoading) {
@@ -46,24 +53,20 @@ export function DashboardAuthGuard({
 
   return (
     <div className="min-h-screen bg-background">
-      {/* Desktop sidebar — always visible on lg+ */}
+      {/* Desktop sidebar — always visible lg+ */}
       <Sidebar onLogout={logout} />
 
-      {/* Topbar — owns the mobile Sheet, receives controlled open state */}
+      {/* Topbar with controlled mobile drawer + logout */}
       <Topbar
         user={topbarUser}
         notificationCount={0}
         mobileMenuOpen={mobileMenuOpen}
-        onMobileMenuOpen={() => setMobileMenuOpen(true)}
-        onMobileMenuClose={() => setMobileMenuOpen(false)}
+        onMobileMenuOpen={openMenu}
+        onMobileMenuClose={closeMenu}
+        onLogout={logout}
       />
 
-      {/*
-        Main content area — swipe ref lives here so the full page
-        area is the swipe target, not just a small strip.
-        On desktop (lg:) swipe is irrelevant since sidebar is fixed.
-      */}
-      <main ref={swipeRef} className="pt-14 lg:pl-56">
+      <main className="pt-14 lg:pl-56">
         <div className="min-h-[calc(100vh-3.5rem)] pb-20 lg:pb-0">
           {children}
         </div>
