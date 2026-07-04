@@ -9,6 +9,8 @@ import { v4 as uuidv4 } from 'uuid';
 import { PrismaService } from '../prisma/prisma.service';
 import { NombaService } from '../nomba/nomba.service';
 import { AppConfig } from '../config/app.config';
+import { RealtimeService } from '../realtime/realtime.service';
+import { REALTIME_EVENTS } from '../realtime/realtime.events';
 import {
   FundWalletDto,
   TransferDto,
@@ -27,7 +29,8 @@ export class WalletService {
     private readonly prisma: PrismaService,
     private readonly nomba: NombaService,
     private readonly config: ConfigService<AppConfig>,
-  ) { }
+    private readonly realtime: RealtimeService,
+  ) {}
 
   // ─── Get Wallet ───────────────────────────────────────────────────────────
 
@@ -207,6 +210,23 @@ export class WalletService {
       `Transfer: ₦${dto.amount} from userId=${senderUserId} to accountNo=${dto.accountNumber} journalId=${journalId}`,
     );
 
+    const amountLabel = `₦${dto.amount.toLocaleString('en-NG')}`;
+
+    // Live push + persisted notification for both sides of the transfer.
+    // Fire-and-forget from the caller's perspective — a socket hiccup or
+    // notification-write failure should never fail a transfer that already
+    // committed to the ledger.
+    this.emitTransferEvents({
+      senderUserId,
+      senderName: senderFullName,
+      recipientUserId: recipientWallet.user.id,
+      recipientName: recipientWallet.user.fullName,
+      amount: dto.amount,
+      amountLabel,
+      senderRef,
+      recipientRef,
+    });
+
     return {
       message: `₦${dto.amount.toLocaleString('en-NG')} sent to ${recipientWallet.user.fullName}`,
       reference: senderRef,
@@ -216,6 +236,57 @@ export class WalletService {
         accountNumber: dto.accountNumber,
       },
     };
+  }
+
+  // ─── Realtime helpers ───────────────────────────────────────────────────
+
+  private emitTransferEvents(input: {
+    senderUserId: string;
+    senderName: string;
+    recipientUserId: string;
+    recipientName: string;
+    amount: number;
+    amountLabel: string;
+    senderRef: string;
+    recipientRef: string;
+  }): void {
+    // Dedicated event — client uses this to invalidate wallet/transactions
+    // queries without parsing the generic notification envelope.
+    this.realtime.emitToUser(input.senderUserId, REALTIME_EVENTS.WALLET_TRANSFER, {
+      direction: 'DEBIT',
+      amount: input.amount,
+      reference: input.senderRef,
+      counterpartyName: input.recipientName,
+    });
+    this.realtime.emitToUser(input.recipientUserId, REALTIME_EVENTS.WALLET_TRANSFER, {
+      direction: 'CREDIT',
+      amount: input.amount,
+      reference: input.recipientRef,
+      counterpartyName: input.senderName,
+    });
+
+    // Persisted notification feed entry for each side.
+    this.realtime
+      .notify({
+        userId: input.senderUserId,
+        type: 'WALLET_TRANSFER',
+        title: 'Transfer sent',
+        body: `You sent ${input.amountLabel} to ${input.recipientName}`,
+      })
+      .catch((err) =>
+        this.logger.warn(`Failed to save sender transfer notification: ${err}`),
+      );
+
+    this.realtime
+      .notify({
+        userId: input.recipientUserId,
+        type: 'WALLET_TRANSFER',
+        title: 'Transfer received',
+        body: `${input.senderName} sent you ${input.amountLabel}`,
+      })
+      .catch((err) =>
+        this.logger.warn(`Failed to save recipient transfer notification: ${err}`),
+      );
   }
 
   // ─── Transaction History ─────────────────────────────────────────────────

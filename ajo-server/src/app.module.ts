@@ -5,6 +5,8 @@ import { NombaModule } from './nomba/nomba.module';
 import { AuthModule } from './auth/auth.module';
 import { WalletModule } from './wallet/wallet.module';
 import { MailModule } from './mail/mail.module';
+import { RealtimeModule } from './realtime/realtime.module';
+import { WebhooksModule } from './webhooks/webhooks.module';
 import { configFactory, validationSchema } from './config/app.config';
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
@@ -20,8 +22,10 @@ import { AppService } from './app.service';
     PrismaModule,
     NombaModule,
     MailModule,
+    RealtimeModule,
     AuthModule,
     WalletModule,
+    WebhooksModule,
     // GroupsModule,
     // ContributionsModule,
     // PayoutsModule,
