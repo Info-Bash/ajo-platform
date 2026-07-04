@@ -50,7 +50,7 @@ export class RealtimeGateway
     private readonly config: ConfigService<AppConfig>,
   ) {}
 
-  onGatewayInit(): void {
+  afterInit(): void {
     this.logger.log('Realtime gateway initialised');
   }
 

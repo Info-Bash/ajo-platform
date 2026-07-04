@@ -3,6 +3,7 @@
 import { useState, useCallback } from "react"
 import { useAuth } from "@/providers/auth-provider"
 import { useSwipe } from "@/hooks/use-swipe"
+import { useRealtimeWallet } from "@/hooks/use-realtime-wallet"
 import { Sidebar } from "@/components/dashboard/sidebar"
 import { Topbar } from "@/components/dashboard/topbar"
 import { BottomTabBar } from "@/components/dashboard/bottom-tab-bar"
@@ -14,6 +15,10 @@ export function DashboardAuthGuard({
 }) {
   const { user, isLoading, logout } = useAuth()
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
+
+  // Keeps wallet balance/transactions live and surfaces toasts for
+  // funding + transfer events pushed from the server over the socket.
+  useRealtimeWallet()
 
   // Stable callbacks — useCallback prevents useSwipe's effect from
   // tearing down and re-adding document listeners on every render

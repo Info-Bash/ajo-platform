@@ -50,8 +50,19 @@ class NombaTransactionDoc {
 }
 
 class NombaCustomerDoc {
-  @ApiProperty({ example: 'Chukwuemeka Obi', description: 'Name of the person who sent the money' }) senderName: string;
+  @ApiProperty({ example: 'Abu Bash', description: 'Name of the person who sent the money' }) senderName: string;
   @ApiProperty({ example: 'Ajo Wallet' }) recipientName: string;
+}
+
+class NombaWebhookDataDoc {
+  @ApiProperty({ type: () => NombaMerchantDoc })
+  merchant: NombaMerchantDoc;
+
+  @ApiProperty({ type: () => NombaTransactionDoc })
+  transaction: NombaTransactionDoc;
+
+  @ApiProperty({ type: () => NombaCustomerDoc })
+  customer: NombaCustomerDoc;
 }
 
 class NombaWebhookPayloadDoc {
@@ -65,12 +76,8 @@ class NombaWebhookPayloadDoc {
   @ApiProperty({ example: 'req_abc123xyz', description: 'Unique ID for this webhook delivery (used for idempotency)' })
   requestId: string;
 
-  @ApiProperty({ type: () => ({ merchant: NombaMerchantDoc, transaction: NombaTransactionDoc, customer: NombaCustomerDoc }) })
-  data: {
-    merchant: NombaMerchantDoc;
-    transaction: NombaTransactionDoc;
-    customer: NombaCustomerDoc;
-  };
+  @ApiProperty({ type: () => NombaWebhookDataDoc })
+  data: NombaWebhookDataDoc;
 }
 
 class WebhookReceivedShape {
