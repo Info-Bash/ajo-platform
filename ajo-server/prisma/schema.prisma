@@ -573,21 +573,31 @@ model Friendship {
 // back to the correct wallet and amount. Created when user initiates funding,
 // consumed (deleted) when the webhook fires or the order expires.
 
+enum PendingCheckoutStatus {
+  PENDING
+  EXPIRED
+}
+
 model PendingCheckout {
-  id              String   @id @default(cuid())
+  id              String                @id @default(cuid())
   walletId        String
   userId          String
   // orderReference we sent to Nomba — used to match the webhook payload
-  orderReference  String   @unique
+  orderReference  String                @unique
   // Amount in kobo that the user is trying to fund
   amountKobo      Int
   // The checkout link returned by Nomba — sent to frontend for redirect
   checkoutLink    String
   // Expires after a reasonable window (e.g. 30 minutes)
   expiresAt       DateTime
-  createdAt       DateTime @default(now())
+  // PENDING until the scheduled cleanup job marks it EXPIRED. We soft-delete
+  // (mark EXPIRED) instead of hard-deleting so a late-arriving webhook can
+  // still be reconciled against the row — see PendingCheckoutCleanupService.
+  status          PendingCheckoutStatus @default(PENDING)
+  createdAt       DateTime              @default(now())
 
   @@index([orderReference])
   @@index([walletId])
+  @@index([status, expiresAt])
   @@map("pending_checkouts")
 }

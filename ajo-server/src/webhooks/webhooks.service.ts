@@ -1,5 +1,7 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
+import { RealtimeService } from '../realtime/realtime.service';
+import { REALTIME_EVENTS } from '../realtime/realtime.events';
 import { NombaWebhookPayload } from './nomba-webhook.types';
 // Prisma enums — use string literals to avoid pre-generate import issues
 // Once prisma generate runs, these enums are available from '@prisma/client'
@@ -10,7 +12,10 @@ const toKobo = (naira: number): number => Math.round(naira * 100);
 export class WebhooksService {
   private readonly logger = new Logger(WebhooksService.name);
 
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly realtime: RealtimeService,
+  ) {}
 
   async handleEvent(payload: NombaWebhookPayload): Promise<void> {
     const { event_type, requestId, data } = payload;
@@ -94,6 +99,26 @@ export class WebhooksService {
         `amountKobo=${amountKobo} orderRef=${orderReference}`,
       );
     });
+
+    const amountLabel = `₦${(amountKobo / 100).toLocaleString('en-NG')}`;
+
+    // Dedicated event for the client to invalidate wallet/transactions
+    // queries, plus a persisted notification-feed entry.
+    this.realtime.emitToUser(pendingCheckout.userId, REALTIME_EVENTS.WALLET_FUNDED, {
+      amountKobo,
+      reference: `DEP-${nombaReference}`,
+    });
+
+    this.realtime
+      .notify({
+        userId: pendingCheckout.userId,
+        type: 'WALLET_FUNDED',
+        title: 'Wallet funded',
+        body: `Your wallet was credited with ${amountLabel}`,
+      })
+      .catch((err) =>
+        this.logger.warn(`Failed to save wallet-funded notification: ${err}`),
+      );
   }
 
   private async handlePayoutSuccess(payload: NombaWebhookPayload): Promise<void> {
@@ -113,8 +138,17 @@ export class WebhooksService {
     const nombaReference = payload.data.transaction.transactionId;
     const orderReference = payload.data.order?.orderReference;
 
+    // Deliberately NOT deleting the PendingCheckout here. A failed attempt
+    // doesn't end the checkout session — Nomba checkout links allow the user
+    // to retry payment on the same link, which fires a fresh payment_success
+    // webhook against the same orderReference. Deleting on failure would make
+    // that later success webhook unmatchable. The row is left PENDING and is
+    // only ever cleared by handlePaymentSuccess() (on success) or the
+    // scheduled cleanup job (once genuinely expired).
     if (orderReference) {
-      await this.prisma.pendingCheckout.delete({ where: { orderReference } }).catch(() => {});
+      this.logger.warn(
+        `Payment failed for orderReference=${orderReference} — checkout left open for retry`,
+      );
     }
 
     const txn = await this.prisma.transaction.findFirst({ where: { nombaReference } });

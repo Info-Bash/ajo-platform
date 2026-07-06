@@ -1,10 +1,23 @@
 import { io, type Socket } from "socket.io-client"
 import { getToken } from "@/lib/api-client"
 
-const SOCKET_URL =
-  process.env.NEXT_PUBLIC_SOCKET_URL ??
-  process.env.NEXT_PUBLIC_API_URL?.replace("/api", "") ??
-  "http://localhost:3001"
+function deriveSocketUrl(): string {
+  if (process.env.NEXT_PUBLIC_SOCKET_URL) return process.env.NEXT_PUBLIC_SOCKET_URL
+
+  // Fall back to the API URL's origin (strips any /api/v1 path safely,
+  // instead of a naive string replace that only removes the first "/api").
+  if (process.env.NEXT_PUBLIC_API_URL) {
+    try {
+      return new URL(process.env.NEXT_PUBLIC_API_URL).origin
+    } catch {
+      // fall through to default below
+    }
+  }
+
+  return "http://localhost:3001"
+}
+
+const SOCKET_URL = deriveSocketUrl()
 
 const IS_DEV = process.env.NODE_ENV === "development"
 

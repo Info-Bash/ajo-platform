@@ -12,8 +12,10 @@ import {
 
 interface SocketContextValue {
   socket: Socket
-  /** Subscribe to a socket event, auto-cleaned up on unmount */
-  on: (event: SocketEvent | string, handler: (...args: unknown[]) => void) => void
+  /** Subscribe to a socket event. Returns an unsubscribe function — call it
+   *  from your effect's cleanup (the socket is a singleton that outlives
+   *  any single component, so listeners are never removed automatically). */
+  on: (event: SocketEvent | string, handler: (...args: unknown[]) => void) => () => void
   /** Emit an event to the server */
   emit: (event: string, data?: unknown) => void
 }
@@ -58,6 +60,9 @@ export function SocketProvider({ children }: { children: React.ReactNode }) {
 
   function on(event: SocketEvent | string, handler: (...args: unknown[]) => void) {
     socketRef.current.on(event, handler)
+    return () => {
+      socketRef.current.off(event, handler)
+    }
   }
 
   function emit(event: string, data?: unknown) {
@@ -78,7 +83,7 @@ export function SocketProvider({ children }: { children: React.ReactNode }) {
  *   const { on, emit } = useSocket()
  *
  *   useEffect(() => {
- *     on(SOCKET_EVENTS.CONTRIBUTION_MADE, (data) => {
+ *     return on(SOCKET_EVENTS.CONTRIBUTION_MADE, (data) => {
  *       queryClient.invalidateQueries({ queryKey: ["circle", data.groupId] })
  *     })
  *   }, [on])

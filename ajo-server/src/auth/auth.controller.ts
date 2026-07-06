@@ -48,7 +48,7 @@ import {
 
 import { ApiProperty } from '@nestjs/swagger';
 
-class WalletShape {
+class AuthWalletShape {
   @ApiProperty({ example: 'wallet_clx...' }) id: string;
   @ApiProperty({
     example: 0,
@@ -64,7 +64,7 @@ class UserShape {
   @ApiProperty({ example: null, nullable: true }) avatarUrl: string | null;
   @ApiProperty({ example: true }) isEmailVerified: boolean;
   @ApiProperty({ example: 100 }) reputationScore: number;
-  @ApiProperty({ type: WalletShape, nullable: true }) wallet: WalletShape | null;
+  @ApiProperty({ type: AuthWalletShape, nullable: true }) wallet: AuthWalletShape | null;
 }
 
 class AuthResponseShape {

@@ -3,6 +3,7 @@ import { ThemeProvider } from "next-themes";
 import { Inter, Geist_Mono } from "next/font/google";
 import { AuthProvider } from "@/providers/auth-provider";
 import { QueryProvider } from "@/providers/query-provider";
+import { Toaster } from "@/components/ui/sonner";
 import Script from "next/script"
 import "./globals.css";
 
@@ -45,6 +46,7 @@ export default function RootLayout({
             </AuthProvider>
           </QueryProvider>
         </ThemeProvider>
+        <Toaster position="top-right" richColors />
         {/* Google Identity Services SDK — loaded once for the whole app */}
         <Script
           src="https://accounts.google.com/gsi/client"
