@@ -2,6 +2,7 @@ import {
   Injectable,
   Logger,
   InternalServerErrorException,
+  BadRequestException,
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { AppConfig } from '../config/app.config';
@@ -36,6 +37,37 @@ interface NombaCheckoutOrderResponse {
   };
 }
 
+// ─── Payout (Bank Transfer) types ──────────────────────────────────────────
+
+interface NombaBank {
+  code: string; // Use this as bankCode in lookup/transfer requests
+  name: string;
+}
+
+interface NombaBankListResponse {
+  code: string;
+  description: string;
+  data: { results: NombaBank[] };
+}
+
+interface NombaBankLookupResponse {
+  code: string;
+  description: string;
+  data: { accountNumber: string; accountName: string };
+}
+
+interface NombaBankPayoutResponse {
+  code: string; // "00"/"200" on a normal response, "201" means "still processing"
+  description: string;
+  status?: boolean; // true = call succeeded; NOTE data.status is the real transfer status
+  data: {
+    // Nomba's transfer ID. NOTE: this can be ABSENT on a "201 processing"
+    // response — do not assume it's always present, see createBankPayout().
+    id?: string;
+    status: 'SUCCESS' | 'PENDING_BILLING' | 'NEW' | 'REFUND' | string;
+  };
+}
+
 @Injectable()
 export class NombaService {
   private readonly logger = new Logger(NombaService.name);
@@ -44,10 +76,26 @@ export class NombaService {
   private cachedRefreshToken: string | null = null;
   private tokenExpiresAt: number = 0; // Unix timestamp ms — parsed from Nomba's ISO string on receipt
 
+  // Bank list rarely changes — Nomba's own docs say to cache it. In-memory
+  // cache is fine here (worst case a Render restart just means one extra
+  // fetch); TTL is generous since bank codes are effectively static.
+  private cachedBanks: NombaBank[] | null = null;
+  private banksCachedAt = 0;
+  private static readonly BANKS_CACHE_TTL_MS = 24 * 60 * 60 * 1000;
+
   constructor(private readonly config: ConfigService<AppConfig>) {}
 
   private get nombaConfig() {
     return this.config.get('nomba', { infer: true })!;
+  }
+
+  // Payout endpoints (bank list, account lookup, bank transfer) live on
+  // /v1 and /v2 depending on the endpoint, which doesn't match the checkout
+  // API's fixed /v1 base. Derive the bare origin so each method can pin its
+  // own version explicitly instead of silently trusting NOMBA_BASE_URL's
+  // version segment.
+  private get apiOrigin(): string {
+    return this.nombaConfig.baseUrl.replace(/\/v\d+\/?$/, '');
   }
 
   async getAccessToken(): Promise<string> {
@@ -271,6 +319,199 @@ export class NombaService {
     return {
       checkoutLink: data.data.checkoutLink,
       orderReference: data.data.orderReference,
+    };
+  }
+
+  // ─── Payout (Bank Transfer) ────────────────────────────────────────────────
+
+  /**
+   * Fetches the list of Nomba-supported banks (code + name), used to
+   * populate the "select bank" step in the withdrawal flow and to resolve
+   * a bankCode's display name for saved beneficiaries. Cached in-memory for
+   * 24h per Nomba's own guidance ("call this endpoint once and cache the
+   * result — bank codes rarely change").
+   */
+  async getBankList(): Promise<{ code: string; name: string }[]> {
+    const now = Date.now();
+    if (this.cachedBanks && now < this.banksCachedAt + NombaService.BANKS_CACHE_TTL_MS) {
+      return this.cachedBanks;
+    }
+
+    const token = await this.getAccessToken();
+    const { accountId } = this.nombaConfig;
+
+    const response = await fetch(`${this.apiOrigin}/v1/transfers/banks`, {
+      method: 'GET',
+      headers: {
+        Authorization: `Bearer ${token}`,
+        accountId,
+      },
+    });
+
+    if (!response.ok) {
+      const text = await response.text();
+      this.logger.error(`Nomba bank list fetch failed: ${response.status} ${text}`);
+      throw new InternalServerErrorException('Failed to fetch bank list. Please try again.');
+    }
+
+    const payload = (await response.json()) as NombaBankListResponse;
+
+    if (payload.code !== '00') {
+      this.logger.error(`Nomba bank list returned non-success code: ${payload.code}`);
+      throw new InternalServerErrorException('Failed to fetch bank list. Please try again.');
+    }
+
+    this.cachedBanks = payload.data.results;
+    this.banksCachedAt = now;
+    return this.cachedBanks;
+  }
+
+  /**
+   * Verifies a destination account before initiating a payout — resolves
+   * the bank's real account name for a given accountNumber + bankCode.
+   * Always call this immediately before a transfer (even for a previously
+   * saved beneficiary) since accounts can be closed or renamed.
+   */
+  async resolveBankAccount(params: {
+    accountNumber: string;
+    bankCode: string;
+  }): Promise<{ accountNumber: string; accountName: string }> {
+    const token = await this.getAccessToken();
+    const { accountId } = this.nombaConfig;
+
+    const response = await fetch(`${this.apiOrigin}/v1/transfers/bank/lookup`, {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${token}`,
+        'Content-Type': 'application/json',
+        accountId,
+      },
+      body: JSON.stringify({
+        accountNumber: params.accountNumber,
+        bankCode: params.bankCode,
+      }),
+    });
+
+    if (!response.ok) {
+      const text = await response.text();
+      this.logger.error(`Nomba account lookup failed: ${response.status} ${text}`);
+      throw new BadRequestException(
+        'Could not verify that account number. Please check the details and try again.',
+      );
+    }
+
+    const payload = (await response.json()) as NombaBankLookupResponse;
+
+    if (payload.code !== '00') {
+      throw new BadRequestException(
+        'Could not verify that account number. Please check the details and try again.',
+      );
+    }
+
+    return payload.data;
+  }
+
+  /**
+   * Initiates a bank payout (withdrawal) from our Nomba sub-account.
+   *
+   * IMPORTANT — unlike checkout's `amount` (a decimal STRING like "100.00"),
+   * the transfer-to-banks endpoint takes `amount` as a plain NUMBER in
+   * Naira (confirmed against Nomba's docs — their own example request uses
+   * `"amount": 3500` for a ₦3,500 transfer). Mixing these two conventions
+   * up is an easy way to send 100x the intended amount — do not "fix" this
+   * to match createCheckoutOrder's string format.
+   *
+   * merchantTxRef is OUR idempotency key. Per Nomba's own guidance:
+   *   - it must be unique per transaction and reused only on retry of the
+   *     SAME transaction (never reused after a transfer has been accepted)
+   *   - the payout webhook echoes it back at data.transaction.merchantTxRef,
+   *     so the caller should treat merchantTxRef — not this method's
+   *     returned `id` — as the source of truth for matching the webhook.
+   *     `id` can be genuinely absent on a "processing" response, whereas
+   *     merchantTxRef is always known because we generated it ourselves.
+   *     (See the checkout orderReference incident for why we don't trust a
+   *     provider-echoed value as the primary key when we already hold the
+   *     original ourselves.)
+   *
+   * A non-throwing "ambiguous" outcome (network error / non-2xx / unexpected
+   * shape) is intentionally surfaced as a thrown error rather than assumed
+   * to be a failure — per Nomba's guidance, an unclear response should be
+   * treated as PENDING and resolved via the webhook or a requery, NOT
+   * retried with a new reference and NOT assumed to have definitely failed.
+   */
+  async createBankPayout(params: {
+    amountKobo: number;
+    accountNumber: string;
+    accountName: string;
+    bankCode: string;
+    merchantTxRef: string;
+    senderName?: string;
+    narration?: string;
+  }): Promise<{ nombaTransferId: string | null; status: string }> {
+    const token = await this.getAccessToken();
+    const { accountId, subAccountId } = this.nombaConfig;
+
+    const amountNaira = params.amountKobo / 100;
+
+    // Transfer from the configured sub-account when one is set (this app
+    // funds via a sub-account too — see NOMBA_SUB_ACCOUNT_ID). Sub-account
+    // transfers must be explicitly enabled on your Nomba account first;
+    // if you see a "feature not enabled" error here, contact Nomba support.
+    const path = subAccountId
+      ? `/v2/transfers/bank/${subAccountId}`
+      : '/v2/transfers/bank';
+
+    let response: Response;
+    try {
+      response = await fetch(`${this.apiOrigin}${path}`, {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${token}`,
+          'Content-Type': 'application/json',
+          accountId,
+        },
+        body: JSON.stringify({
+          amount: amountNaira,
+          accountNumber: params.accountNumber,
+          accountName: params.accountName,
+          bankCode: params.bankCode,
+          merchantTxRef: params.merchantTxRef,
+          senderName: params.senderName,
+          narration: params.narration,
+        }),
+      });
+    } catch (err) {
+      this.logger.error(`Nomba payout request threw before a response was received: ${err}`);
+      // Genuinely ambiguous — we don't know if Nomba received this or not.
+      // Do NOT tell the caller this failed (that could lead to a refund
+      // plus a duplicate manual retry on top of a transfer that actually
+      // went through). Let it sit PENDING; the webhook or a requery will
+      // resolve it.
+      throw new InternalServerErrorException(
+        'Withdrawal is being processed. If it does not confirm shortly, contact support before retrying.',
+      );
+    }
+
+    const payload = (await response.json().catch(() => null)) as NombaBankPayoutResponse | null;
+
+    if (!response.ok || !payload) {
+      this.logger.error(
+        `Nomba payout returned an unclear response: httpStatus=${response.status} body=${JSON.stringify(payload)}`,
+      );
+      throw new InternalServerErrorException(
+        'Withdrawal is being processed. If it does not confirm shortly, contact support before retrying.',
+      );
+    }
+
+    // code "201" = accepted but not yet resolved ("PROCESSING"); `data.id`
+    // may not be populated yet in this case.
+    this.logger.log(
+      `Nomba payout initiated: merchantTxRef=${params.merchantTxRef} code=${payload.code} status=${payload.data?.status}`,
+    );
+
+    return {
+      nombaTransferId: payload.data?.id ?? null,
+      status: payload.data?.status ?? 'UNKNOWN',
     };
   }
 }
