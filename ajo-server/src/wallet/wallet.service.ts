@@ -73,8 +73,16 @@ export class WalletService {
     // Unique order reference — we generate it so we can track it in PendingCheckout
     const orderRef = uuidv4();
 
-    // Create Nomba checkout order
-    const { checkoutLink, orderReference } = await this.nomba.createCheckoutOrder({
+    // Create Nomba checkout order.
+    // NOTE: we deliberately ignore the `orderReference` Nomba's create-order
+    // response echoes back — it isn't reliably identical to the `orderRef`
+    // we submitted, and the payment_success webhook later comes back with
+    // OUR submitted reference at data.order.orderReference, not whatever
+    // Nomba's create-order response contained. Trusting the response value
+    // here caused PendingCheckout to be saved under the wrong key, so the
+    // webhook could never find it. `orderRef` is the only value guaranteed
+    // to match what the webhook will send.
+    const { checkoutLink } = await this.nomba.createCheckoutOrder({
       amountKobo,
       currency: 'NGN',
       orderRef,
@@ -96,7 +104,7 @@ export class WalletService {
       data: {
         walletId: user.wallet.id,
         userId,
-        orderReference,
+        orderReference: orderRef,
         amountKobo,
         checkoutLink,
         // Expire after 30 minutes — if user abandons checkout
@@ -105,12 +113,12 @@ export class WalletService {
     });
 
     this.logger.log(
-      `Checkout order created: userId=${userId} amount=₦${dto.amount} orderRef=${orderReference}`,
+      `Checkout order created: userId=${userId} amount=₦${dto.amount} orderRef=${orderRef}`,
     );
 
     return {
       checkoutLink,
-      orderReference,
+      orderReference: orderRef,
       amount: dto.amount,
       amountKobo,
     };
