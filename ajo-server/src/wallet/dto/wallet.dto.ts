@@ -49,6 +49,14 @@ export class TransferDto {
   @IsString()
   @IsOptional()
   description?: string;
+
+  @ApiProperty({
+    example: '1234',
+    description: "The user's 4-digit transaction PIN.",
+  })
+  @IsString()
+  @Length(4, 4, { message: 'PIN must be exactly 4 digits' })
+  pin: string;
 }
 
 export class ResolveBankAccountDto {

@@ -246,13 +246,15 @@ export class WalletController {
       '**Double-entry ledger:** creates a `DEBIT` entry on the sender and a ' +
       '`CREDIT` entry on the recipient atomically in a single database transaction. ' +
       'Both entries share the same `journalId` for reconciliation.\n\n' +
+      'Requires the transaction PIN set via `POST /wallet/pin`.\n\n' +
       'Use `GET /wallet/lookup/:accountNumber` first to confirm the recipient ' +
       'before calling this endpoint.',
   })
   @ApiOkResponse({ type: TransferResponseShape })
   @ApiBadRequestResponse({
     description:
-      'Insufficient balance, self-transfer attempt, or amount below minimum.',
+      'Insufficient balance, self-transfer attempt, amount below minimum, ' +
+      'missing/incorrect transaction PIN, or no PIN set yet.',
   })
   @ApiNotFoundResponse({ description: 'Sender or recipient wallet not found.' })
   transfer(@CurrentUser() user: { id: string }, @Body() dto: TransferDto) {

@@ -139,12 +139,23 @@ export class WalletService {
     // Look up sender wallet
     const senderWallet = await this.prisma.wallet.findUnique({
       where: { userId: senderUserId },
-      include: { user: { select: { fullName: true } } },
+      include: { user: { select: { fullName: true, transactionPinHash: true } } },
     });
     if (!senderWallet) throw new NotFoundException('Sender wallet not found');
     if (!senderWallet.user) {
       throw new NotFoundException('Sender account is not a personal wallet');
     }
+
+    if (!senderWallet.user.transactionPinHash) {
+      throw new BadRequestException(
+        'Set a transaction PIN before transferring (POST /wallet/pin)',
+      );
+    }
+    const pinMatches = await bcrypt.compare(
+      dto.pin,
+      senderWallet.user.transactionPinHash,
+    );
+    if (!pinMatches) throw new BadRequestException('Incorrect transaction PIN');
 
     // Sufficient balance check
     if (senderWallet.balanceKobo < amountKobo) {

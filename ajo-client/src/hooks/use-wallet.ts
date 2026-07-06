@@ -208,6 +208,7 @@ interface TransferPayload {
   accountNumber: string
   amount: number
   description?: string
+  pin: string
 }
 
 export function useTransfer() {
