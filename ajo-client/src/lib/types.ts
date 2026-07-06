@@ -17,6 +17,7 @@ export interface Wallet {
   accountNumber: string
   balance: number
   currency: "NGN"
+  hasTransactionPin: boolean
 }
 
 export type TransactionType =

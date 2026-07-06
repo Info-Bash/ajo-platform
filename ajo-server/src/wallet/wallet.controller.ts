@@ -47,6 +47,11 @@ class WalletShape {
   })
   balanceNaira: number;
   @ApiProperty({ example: '2024-01-01T00:00:00.000Z' }) createdAt: string;
+  @ApiProperty({
+    example: true,
+    description: 'Whether the user has set a transaction PIN (required before withdrawing).',
+  })
+  hasTransactionPin: boolean;
 }
 
 class FundWalletResponseShape {
