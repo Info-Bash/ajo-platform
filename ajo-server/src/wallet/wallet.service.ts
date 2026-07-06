@@ -47,6 +47,7 @@ export class WalletService {
         accountNumber: true,
         balanceKobo: true,
         createdAt: true,
+        user: { select: { transactionPinHash: true } },
       },
     });
 
@@ -58,6 +59,7 @@ export class WalletService {
       balanceKobo: wallet.balanceKobo,
       balanceNaira: toNaira(wallet.balanceKobo),
       createdAt: wallet.createdAt,
+      hasTransactionPin: Boolean(wallet.user?.transactionPinHash),
     };
   }
 

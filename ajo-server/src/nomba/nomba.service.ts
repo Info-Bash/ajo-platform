@@ -47,7 +47,7 @@ interface NombaBank {
 interface NombaBankListResponse {
   code: string;
   description: string;
-  data: { results: NombaBank[] };
+  data: NombaBank[];
 }
 
 interface NombaBankLookupResponse {
@@ -361,7 +361,7 @@ export class NombaService {
       throw new InternalServerErrorException('Failed to fetch bank list. Please try again.');
     }
 
-    this.cachedBanks = payload.data.results;
+    this.cachedBanks = payload.data;
     this.banksCachedAt = now;
     return this.cachedBanks;
   }
