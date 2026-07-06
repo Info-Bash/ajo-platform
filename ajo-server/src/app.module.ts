@@ -1,5 +1,6 @@
 import { Module } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
+import { ScheduleModule } from '@nestjs/schedule';
 import { PrismaModule } from './prisma/prisma.module';
 import { NombaModule } from './nomba/nomba.module';
 import { AuthModule } from './auth/auth.module';
@@ -19,6 +20,7 @@ import { AppService } from './app.service';
       validationSchema,
       validationOptions: { allowUnknown: true, abortEarly: false },
     }),
+    ScheduleModule.forRoot(),
     PrismaModule,
     NombaModule,
     MailModule,

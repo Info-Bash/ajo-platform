@@ -138,8 +138,17 @@ export class WebhooksService {
     const nombaReference = payload.data.transaction.transactionId;
     const orderReference = payload.data.order?.orderReference;
 
+    // Deliberately NOT deleting the PendingCheckout here. A failed attempt
+    // doesn't end the checkout session — Nomba checkout links allow the user
+    // to retry payment on the same link, which fires a fresh payment_success
+    // webhook against the same orderReference. Deleting on failure would make
+    // that later success webhook unmatchable. The row is left PENDING and is
+    // only ever cleared by handlePaymentSuccess() (on success) or the
+    // scheduled cleanup job (once genuinely expired).
     if (orderReference) {
-      await this.prisma.pendingCheckout.delete({ where: { orderReference } }).catch(() => {});
+      this.logger.warn(
+        `Payment failed for orderReference=${orderReference} — checkout left open for retry`,
+      );
     }
 
     const txn = await this.prisma.transaction.findFirst({ where: { nombaReference } });
