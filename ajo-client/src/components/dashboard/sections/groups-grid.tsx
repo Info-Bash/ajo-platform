@@ -1,24 +1,32 @@
 "use client"
 
 import Link from "next/link"
-import { Plus, Search, UserPlus } from "lucide-react"
+import { Plus, Search } from "lucide-react"
 import { useRouter } from "next/navigation"
 
 import { Button } from "@/components/ui/button"
 import { Skeleton } from "@/components/ui/skeleton"
 import { CircleCard } from "@/components/ajo/circle-card"
-import { useGroups } from "@/hooks/use-dashboard"
+import { useMyGroups } from "@/hooks/use-groups"
 import type { AjoStatus } from "@/components/ajo/status-badge"
-import type { AjoGroup, ContributionStatus } from "@/lib/types"
+import type { AjoGroup } from "@/lib/types"
 
-/** Maps backend ContributionStatus → UI AjoStatus for CircleCard display */
-function toAjoStatus(status: ContributionStatus): AjoStatus {
-  switch (status) {
-    case "paid":      return "paid"
-    case "pending":   return "pending"
-    case "late":      return "overdue"
-    case "defaulted": return "overdue"
+/** Derives the CircleCard status badge from a group's real lifecycle fields
+ *  (no single "myContributionStatus" field exists on the backend — it's
+ *  computed per-round via /groups/:id/schedule, so here we approximate from
+ *  what the group summary already gives us). */
+function deriveAjoStatus(group: AjoGroup): AjoStatus {
+  if (group.myStatus === "late" || group.myStatus === "defaulted") return "overdue"
+  if (group.status === "completed") return "paid"
+  if (
+    group.status === "active" &&
+    group.myPayoutRound !== null &&
+    group.myPayoutRound === group.currentRound &&
+    !group.myPayoutReceived
+  ) {
+    return "turn"
   }
+  return "pending"
 }
 
 function groupToCircleProps(group: AjoGroup) {
@@ -31,16 +39,20 @@ function groupToCircleProps(group: AjoGroup) {
       name: m.fullName,
       avatarUrl: m.avatarUrl,
     })),
-    myStatus: toAjoStatus(group.myContributionStatus),
-    scheduleNote: group.nextContributionDate
-      ? `Next: ${new Date(group.nextContributionDate).toLocaleDateString("en-NG", { day: "numeric", month: "short" })}`
-      : "No upcoming contribution",
+    memberCount: group.memberCount,
+    myStatus: deriveAjoStatus(group),
+    scheduleNote:
+      group.status === "pending"
+        ? `${group.memberCount}/${group.cycleLength} members joined`
+        : group.nextContributionDate
+        ? `Next: ${new Date(group.nextContributionDate).toLocaleDateString("en-NG", { day: "numeric", month: "short" })}`
+        : "No upcoming contribution",
     progressPercent: Math.round((group.currentRound / group.totalRounds) * 100),
   }
 }
 
 export function GroupsGrid() {
-  const { data: groups, isPending } = useGroups()
+  const { data: groups, isPending } = useMyGroups()
   const router = useRouter()
 
   if (isPending) return <GroupsGridSkeleton />

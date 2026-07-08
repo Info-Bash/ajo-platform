@@ -59,9 +59,11 @@ export interface Beneficiary {
 
 // ─── Ajo Groups ───────────────────────────────────────────────────────────────
 
-export type GroupFrequency = "daily" | "weekly" | "monthly"
+export type GroupFrequency = "daily" | "weekly" | "monthly" | "testing"
 export type GroupVisibility = "public" | "private"
 export type GroupStatus = "pending" | "active" | "completed" | "cancelled"
+export type GroupActivationMode = "auto_start_when_full" | "manual_start_by_admin"
+export type JoinRequestStatus = "pending" | "approved" | "rejected"
 
 export type MemberStatus =
   | "active"
@@ -77,26 +79,44 @@ export interface GroupMember {
   userId: string
   fullName: string
   avatarUrl?: string
+  role: "admin" | "member"
   status: MemberStatus
   payoutOrder: number
   /** Which round this member receives their payout */
   payoutRound: number
   hasReceivedPayout: boolean
-  contributionRate: number  // 0-100 percentage
+  joinedAt: string
+}
+
+export interface GroupJoinRequest {
+  id: string
+  userId: string
+  fullName: string
+  avatarUrl?: string
+  reputationScore: number
+  message?: string
+  status: JoinRequestStatus
+  createdAt: string
 }
 
 export interface RoundContribution {
+  id: string
   memberId: string
+  userId: string
   fullName: string
   avatarUrl?: string
   status: ContributionStatus
+  amount: number
+  dueDate: string
   paidAt?: string
 }
 
 export interface Round {
+  id: string
   number: number
   payoutMemberId: string
   payoutMemberName: string
+  payoutMemberAvatarUrl?: string
   status: "upcoming" | "active" | "completed"
   contributions: RoundContribution[]
   payoutReleasedAt?: string
@@ -114,22 +134,31 @@ export interface AjoGroup {
   frequency: GroupFrequency
   visibility: GroupVisibility
   status: GroupStatus
+  activationMode: GroupActivationMode
+  gracePeriodHours?: number
   currentRound: number
   totalRounds: number
+  memberCount: number
+  slotsRemaining: number
   members: GroupMember[]
   rounds: Round[]
   creatorId: string
+  /** Only present when the current user is the group admin */
   inviteCode?: string
   createdAt: string
   nextContributionDate?: string
+  /** Current user's role in this group ("admin" | "member"), null if not a member */
+  myRole: "admin" | "member" | null
   /** Current user's status in this group */
-  myStatus: MemberStatus
+  myStatus: MemberStatus | null
   /** Current user's contribution status this round */
   myContributionStatus: ContributionStatus
   /** Which round the current user receives their payout */
-  myPayoutRound: number
+  myPayoutRound: number | null
   /** Has the current user received their payout */
   myPayoutReceived: boolean
+  /** If the user isn't a member, their pending/approved/rejected join request status */
+  myJoinRequestStatus?: JoinRequestStatus | null
 }
 
 // ─── Notifications ────────────────────────────────────────────────────────────
@@ -138,13 +167,22 @@ export type NotificationType =
   | "contribution_due"
   | "contribution_late"
   | "contribution_received"
+  | "contribution_defaulted"
   | "payout_released"
   | "payout_received"
   | "member_joined"
   | "member_left"
+  | "member_removed"
   | "invite_received"
   | "wallet_funded"
   | "wallet_transfer"
+  | "group_started"
+  | "group_completed"
+  | "round_started"
+  | "join_request_received"
+  | "join_request_approved"
+  | "join_request_rejected"
+  | "direct_message_received"
 
 export interface Notification {
   id: string
@@ -154,6 +192,37 @@ export interface Notification {
   read: boolean
   groupId?: string
   createdAt: string
+}
+
+// ─── Friends ──────────────────────────────────────────────────────────────────
+
+export interface Friend {
+  friendshipId: string
+  userId: string
+  fullName: string
+  avatarUrl?: string
+  reputationScore: number
+  friendsSince: string
+}
+
+// ─── Direct Messages ────────────────────────────────────────────────────────
+
+export interface DirectMessage {
+  id: string
+  conversationId: string
+  senderId: string
+  senderName?: string
+  senderAvatarUrl?: string
+  content: string
+  createdAt: string
+}
+
+export interface Conversation {
+  conversationId: string
+  otherUser: { id: string; fullName: string; avatarUrl?: string }
+  lastMessage: string | null
+  lastMessageAt: string | null
+  unreadCount: number
 }
 
 // ─── Chat ────────────────────────────────────────────────────────────────────
@@ -167,6 +236,7 @@ export interface ChatMessage {
   senderName?: string
   senderAvatarUrl?: string
   type: ChatMessageType
+  systemEventType?: string
   content: string
   createdAt: string
 }

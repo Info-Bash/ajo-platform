@@ -4,14 +4,14 @@ import Link from "next/link"
 import { usePathname } from "next/navigation"
 
 import { cn } from "@/lib/utils"
-import { NAV_ITEMS } from "@/components/dashboard/nav-items"
+import { MOBILE_NAV_ITEMS } from "@/components/dashboard/nav-items"
 
 export function BottomTabBar() {
   const pathname = usePathname()
 
   return (
     <nav className="fixed inset-x-0 bottom-0 z-40 flex h-16 items-center border-t border-border bg-bg-card lg:hidden">
-      {NAV_ITEMS.map(({ label, href, icon: Icon }) => {
+      {MOBILE_NAV_ITEMS.map(({ label, href, icon: Icon }) => {
         const active = pathname === href || pathname.startsWith(href + "/")
         return (
           <Link

@@ -83,6 +83,9 @@ export const SOCKET_EVENTS = {
   CHAT_MESSAGE:           "chat:message",
   CHAT_SYSTEM_MESSAGE:    "chat:system_message",
 
+  // Direct message events
+  DIRECT_MESSAGE:         "dm:message",
+
   // Wallet events
   WALLET_FUNDED:          "wallet:funded",
   WALLET_TRANSFER:        "wallet:transfer",

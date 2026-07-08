@@ -1,11 +1,13 @@
 import { useQuery } from "@tanstack/react-query"
 import { apiClient } from "@/lib/api-client"
-import { MOCK_DASHBOARD, MOCK_GROUPS } from "@/lib/mock-data"
-import type { DashboardSummary, AjoGroup } from "@/lib/types"
+import { MOCK_DASHBOARD } from "@/lib/mock-data"
+import type { DashboardSummary } from "@/lib/types"
 
 /**
  * Toggle this to switch between mock data and real API.
- * Set to false once the NestJS backend is ready.
+ * Set to false once the NestJS backend's /dashboard endpoint is ready.
+ * (Groups/wallet/chat/friends/messages have all moved to real endpoints —
+ * see use-groups.ts, use-wallet.ts, use-chat.ts, use-friends.ts, use-direct-messages.ts.)
  */
 const USE_MOCK = true
 
@@ -17,12 +19,14 @@ export const queryKeys = {
   wallet:       ()         => ["wallet"]                  as const,
   groups:       ()         => ["groups"]                  as const,
   group:        (id: string) => ["groups", id]            as const,
-  contributions:()         => ["contributions"]           as const,
+  contributions:(groupId: string) => ["contributions", groupId] as const,
+  schedule:     (groupId: string) => ["schedule", groupId] as const,
   payouts:      ()         => ["payouts"]                 as const,
   transactions: ()         => ["transactions"]            as const,
   notifications:()         => ["notifications"]           as const,
   friends:      ()         => ["friends"]                 as const,
-  messages:     ()         => ["messages"]                as const,
+  conversations:()         => ["conversations"]            as const,
+  messages:     (otherUserId: string) => ["messages", otherUserId] as const,
   chat:         (groupId: string) => ["chat", groupId]    as const,
 }
 
@@ -35,28 +39,5 @@ export function useDashboard() {
       USE_MOCK
         ? Promise.resolve(MOCK_DASHBOARD)
         : apiClient.get<DashboardSummary>("/dashboard"),
-  })
-}
-
-// ─── Groups ───────────────────────────────────────────────────────────────────
-
-export function useGroups() {
-  return useQuery<AjoGroup[]>({
-    queryKey: queryKeys.groups(),
-    queryFn: () =>
-      USE_MOCK
-        ? Promise.resolve(MOCK_GROUPS)
-        : apiClient.get<AjoGroup[]>("/groups"),
-  })
-}
-
-export function useGroup(id: string) {
-  return useQuery<AjoGroup>({
-    queryKey: queryKeys.group(id),
-    queryFn: () =>
-      USE_MOCK
-        ? Promise.resolve(MOCK_GROUPS.find((g) => g.id === id)!)
-        : apiClient.get<AjoGroup>(`/groups/${id}`),
-    enabled: !!id,
   })
 }
