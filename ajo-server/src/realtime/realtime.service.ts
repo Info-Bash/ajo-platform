@@ -1,6 +1,6 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
-import { RealtimeGateway, userRoom } from './realtime.gateway';
+import { RealtimeGateway, userRoom, groupRoom } from './realtime.gateway';
 import { REALTIME_EVENTS } from './realtime.events';
 
 // Kept loose (string) rather than importing the Prisma enum so this module
@@ -37,9 +37,9 @@ export class RealtimeService {
     this.gateway.server?.to(userRoom(userId)).emit(event, payload);
   }
 
-  /** Reserved for group-wide events once GroupsModule exists. */
+  /** Pushes an event to everyone currently connected to a group's chat room. */
   emitToGroup(groupId: string, event: string, payload: unknown): void {
-    this.gateway.server?.to(`group:${groupId}`).emit(event, payload);
+    this.gateway.server?.to(groupRoom(groupId)).emit(event, payload);
   }
 
   /**

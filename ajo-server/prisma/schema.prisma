@@ -52,6 +52,11 @@ enum GroupFrequency {
   DAILY
   WEEKLY
   MONTHLY
+  // DEV/TESTING ONLY — 3 minute rounds, so the full contribution flow can be
+  // exercised quickly. Rejected by GroupsService.create() when
+  // NODE_ENV === 'production'. Safe to delete this value (+ the guard)
+  // before launch.
+  TESTING
 }
 
 enum GroupVisibility {
@@ -64,6 +69,18 @@ enum GroupStatus {
   ACTIVE     // rotation is running
   COMPLETED  // all rounds finished
   CANCELLED
+}
+
+// Decided by the creator at group creation (spec: contribution feature).
+enum GroupActivationMode {
+  AUTO_START_WHEN_FULL     // activates the instant member count == cycleLength
+  MANUAL_START_BY_ADMIN    // admin explicitly starts it (min. 2 members)
+}
+
+enum JoinRequestStatus {
+  PENDING
+  APPROVED
+  REJECTED
 }
 
 enum MemberStatus {
@@ -113,6 +130,10 @@ enum NotificationType {
   WALLET_TRANSFER
   GROUP_STARTED
   GROUP_COMPLETED
+  JOIN_REQUEST_RECEIVED   // → admin, someone requested to join their public group
+  JOIN_REQUEST_APPROVED   // → requester
+  JOIN_REQUEST_REJECTED   // → requester
+  DIRECT_MESSAGE_RECEIVED
 }
 
 enum MessageType {
@@ -168,6 +189,11 @@ model User {
 
   friendshipsInitiated Friendship[] @relation("FriendshipInitiator")
   friendshipsReceived  Friendship[] @relation("FriendshipReceiver")
+
+  joinRequests          GroupJoinRequest[]
+  conversationsAsUserA  Conversation[]     @relation("ConversationUserA")
+  conversationsAsUserB  Conversation[]     @relation("ConversationUserB")
+  sentDirectMessages    DirectMessage[]
 
   @@map("users")
 }
@@ -366,7 +392,14 @@ model AjoGroup {
   visibility             GroupVisibility @default(PRIVATE)
   status                 GroupStatus     @default(PENDING)
 
-  // Unique invite code for private group joins (e.g. "LAGOS-HUS-2024")
+  // Decided by the creator at creation time (spec section: contribution
+  // feature). AUTO groups activate the instant they fill up; MANUAL groups
+  // wait for an explicit admin action (see GroupsService.activate()).
+  activationMode GroupActivationMode @default(AUTO_START_WHEN_FULL)
+
+  // Unique invite code for private group joins (e.g. "LAGOS-HUS-2024").
+  // Also doubles as the "invite a specific user" mechanism — an admin
+  // invite just sends this code to the target user via Notification.
   inviteCode String? @unique
 
   // Hours before a LATE contribution flips to DEFAULTED (spec section 14.2)
@@ -386,10 +419,41 @@ model AjoGroup {
   transactions  Transaction[]
   messages      ChatMessage[]
   notifications Notification[]
+  joinRequests  GroupJoinRequest[]
 
   @@index([status])
   @@index([visibility])
   @@map("ajo_groups")
+}
+
+// ─── Group Join Requests (public groups) ──────────────────────────────────────
+// A user "requesting to join" a PUBLIC group during its member-gathering
+// (PENDING) stage. Admin approves/rejects; approval creates the GroupMember.
+// Private groups never use this — they're joined directly via inviteCode.
+
+model GroupJoinRequest {
+  id      String             @id @default(cuid())
+  groupId String
+  userId  String
+  status  JoinRequestStatus  @default(PENDING)
+  message String?            // optional note from the requester
+
+  reviewedByUserId String?   // admin who approved/rejected
+  reviewedAt       DateTime?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  group AjoGroup @relation(fields: [groupId], references: [id], onDelete: Cascade)
+  user  User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  // One pending/resolved request per user per group at a time. If rejected,
+  // we keep the row (audit trail) rather than allowing instant re-requests —
+  // service layer can relax this later if we want a cooldown-then-retry UX.
+  @@unique([groupId, userId])
+  @@index([groupId, status])
+  @@index([userId])
+  @@map("group_join_requests")
 }
 
 // ─── Group Members ────────────────────────────────────────────────────────────
@@ -545,6 +609,12 @@ model ChatMessage {
   type     MessageType @default(USER)
   content  String
 
+  // Only set when type = SYSTEM. Lets the client render a specific icon/style
+  // (e.g. "member joined" vs "payout released") without parsing `content`.
+  // e.g. "MEMBER_JOINED" | "MEMBER_LEFT" | "GROUP_ACTIVATED" |
+  //      "CONTRIBUTION_REMINDER" | "CONTRIBUTION_COMPLETED" | "PAYOUT_RELEASED"
+  systemEventType String?
+
   createdAt DateTime @default(now())
 
   group  AjoGroup @relation(fields: [groupId],  references: [id], onDelete: Cascade)
@@ -552,6 +622,46 @@ model ChatMessage {
 
   @@index([groupId, createdAt])
   @@map("chat_messages")
+}
+
+// ─── Direct Messages (1:1) ─────────────────────────────────────────────────────
+// Separate from group ChatMessage on purpose — different lifecycle (no
+// SYSTEM type, no group membership rules) and keeps group-chat queries fast.
+
+model Conversation {
+  id     String @id @default(cuid())
+  // Always stored with userAId < userBId (lexicographic) so a pair can never
+  // get two rows — enforced/normalised in ChatService, not the DB.
+  userAId String
+  userBId String
+
+  lastMessageAt DateTime?
+  createdAt     DateTime  @default(now())
+
+  userA    User            @relation("ConversationUserA", fields: [userAId], references: [id], onDelete: Cascade)
+  userB    User            @relation("ConversationUserB", fields: [userBId], references: [id], onDelete: Cascade)
+  messages DirectMessage[]
+
+  @@unique([userAId, userBId])
+  @@index([userAId])
+  @@index([userBId])
+  @@map("conversations")
+}
+
+model DirectMessage {
+  id             String   @id @default(cuid())
+  conversationId String
+  senderId       String
+  content        String
+  readAt         DateTime?
+
+  createdAt DateTime @default(now())
+
+  conversation Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  sender       User         @relation(fields: [senderId], references: [id], onDelete: Cascade)
+
+  @@index([conversationId, createdAt])
+  @@map("direct_messages")
 }
 
 // ─── Friendships ──────────────────────────────────────────────────────────────

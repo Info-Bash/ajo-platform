@@ -8,6 +8,9 @@ import { WalletModule } from './wallet/wallet.module';
 import { MailModule } from './mail/mail.module';
 import { RealtimeModule } from './realtime/realtime.module';
 import { WebhooksModule } from './webhooks/webhooks.module';
+import { GroupsModule } from './groups/groups.module';
+import { ChatModule } from './chat/chat.module';
+import { FriendsModule } from './friends/friends.module';
 import { configFactory, validationSchema } from './config/app.config';
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
@@ -28,11 +31,15 @@ import { AppService } from './app.service';
     AuthModule,
     WalletModule,
     WebhooksModule,
-    // GroupsModule,
+    ChatModule,
+    FriendsModule,
+    GroupsModule,
+    // ContributionsModule — charges wallets each round, tracks LATE/DEFAULTED
     // ContributionsModule,
+    // PayoutsModule — releases the pot to the round's payoutMember
     // PayoutsModule,
+    // NotificationsModule — dedicated read/list endpoints for Notification rows
     // NotificationsModule,
-    // ChatModule,
   ],
   controllers: [AppController],
   providers: [AppService],
