@@ -11,6 +11,8 @@ import { WebhooksModule } from './webhooks/webhooks.module';
 import { GroupsModule } from './groups/groups.module';
 import { ChatModule } from './chat/chat.module';
 import { FriendsModule } from './friends/friends.module';
+import { ContributionsModule } from './contributions/contributions.module';
+import { PayoutsModule } from './payouts/payouts.module';
 import { configFactory, validationSchema } from './config/app.config';
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
@@ -34,10 +36,8 @@ import { AppService } from './app.service';
     ChatModule,
     FriendsModule,
     GroupsModule,
-    // ContributionsModule — charges wallets each round, tracks LATE/DEFAULTED
-    // ContributionsModule,
-    // PayoutsModule — releases the pot to the round's payoutMember
-    // PayoutsModule,
+    PayoutsModule,
+    ContributionsModule,
     // NotificationsModule — dedicated read/list endpoints for Notification rows
     // NotificationsModule,
   ],

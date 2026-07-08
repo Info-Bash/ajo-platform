@@ -130,6 +130,8 @@ enum NotificationType {
   WALLET_TRANSFER
   GROUP_STARTED
   GROUP_COMPLETED
+  ROUND_STARTED
+  CONTRIBUTION_DEFAULTED
   JOIN_REQUEST_RECEIVED   // → admin, someone requested to join their public group
   JOIN_REQUEST_APPROVED   // → requester
   JOIN_REQUEST_REJECTED   // → requester
@@ -484,6 +486,7 @@ model GroupMember {
   user          User           @relation(fields: [userId],  references: [id], onDelete: Cascade)
   contributions Contribution[]
   payouts       Payout[]
+  payoutForRounds Round[] @relation("RoundPayoutMember")
 
   @@unique([groupId, userId])
   @@unique([groupId, payoutOrder])
@@ -502,11 +505,16 @@ model Round {
 
   // Which GroupMember receives the payout for this round
   payoutMemberId String
+  payoutMember   GroupMember @relation("RoundPayoutMember", fields: [payoutMemberId], references: [id])
 
   startDate DateTime
   endDate   DateTime
 
   payoutReleasedAt DateTime?
+
+  // Set once the "payment due soon" system chat message has been posted for
+  // this round, so the cron job doesn't repost it every tick.
+  reminderSentAt DateTime?
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
