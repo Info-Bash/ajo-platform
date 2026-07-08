@@ -14,6 +14,7 @@ import { FriendsModule } from './friends/friends.module';
 import { ContributionsModule } from './contributions/contributions.module';
 import { PayoutsModule } from './payouts/payouts.module';
 import { DirectMessagesModule } from './direct-messages/direct-messages.module';
+import { DashboardModule } from './dashboard/dashboard.module';
 import { configFactory, validationSchema } from './config/app.config';
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
@@ -40,6 +41,7 @@ import { AppService } from './app.service';
     PayoutsModule,
     ContributionsModule,
     DirectMessagesModule,
+    DashboardModule,
     // NotificationsModule — dedicated read/list endpoints for Notification rows
     // NotificationsModule,
   ],

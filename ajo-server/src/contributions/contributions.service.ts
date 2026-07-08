@@ -46,6 +46,9 @@ export class ContributionsService {
       include: {
         payoutMember: { include: { user: { select: { fullName: true, avatarUrl: true } } } },
         contributions: {
+          // groupMember's own `userId` scalar comes along for free (no
+          // extra select needed) — that's what the frontend uses to work
+          // out which contribution row is "mine".
           include: { groupMember: { include: { user: { select: { fullName: true, avatarUrl: true } } } } },
         },
       },
