@@ -29,6 +29,9 @@ import {
   FundWalletDto,
   TransferDto,
   GetTransactionsDto,
+  WithdrawDto,
+  ResolveBankAccountDto,
+  SetTransactionPinDto,
 } from './dto/wallet.dto';
 
 // ── Response shape classes (Swagger only — never instantiated) ───────────────
@@ -44,6 +47,11 @@ class WalletShape {
   })
   balanceNaira: number;
   @ApiProperty({ example: '2024-01-01T00:00:00.000Z' }) createdAt: string;
+  @ApiProperty({
+    example: true,
+    description: 'Whether the user has set a transaction PIN (required before withdrawing).',
+  })
+  hasTransactionPin: boolean;
 }
 
 class FundWalletResponseShape {
@@ -101,6 +109,35 @@ class TransferResponseShape {
   @ApiProperty({ example: 2000 }) amount: number;
   @ApiProperty({
     example: { name: 'Ada Obi', accountNumber: '2025001234' },
+  })
+  recipient: { name: string; accountNumber: string };
+}
+
+class BankShape {
+  @ApiProperty({ example: '058' }) code: string;
+  @ApiProperty({ example: 'Guaranty Trust Bank' }) name: string;
+}
+
+class ResolvedAccountShape {
+  @ApiProperty({ example: '0554772814' }) accountNumber: string;
+  @ApiProperty({ example: 'M.A Animashaun' }) accountName: string;
+}
+
+class BeneficiaryShape {
+  @ApiProperty({ example: 'clx-beneficiary-id' }) id: string;
+  @ApiProperty({ example: 'M.A Animashaun' }) name: string;
+  @ApiProperty({ example: '0554772814' }) accountNumber: string;
+  @ApiProperty({ example: 'Guaranty Trust Bank' }) bankName: string;
+  @ApiPropertyOptional({ example: '058' }) bankCode?: string;
+}
+
+class WithdrawResponseShape {
+  @ApiProperty({ example: '₦5,000 sent to M.A Animashaun' }) message: string;
+  @ApiProperty({ example: 'a1b2c3d4-...' }) reference: string;
+  @ApiProperty({ example: 5000 }) amount: number;
+  @ApiProperty({ enum: ['SUCCESSFUL', 'PENDING'] }) status: string;
+  @ApiProperty({
+    example: { name: 'M.A Animashaun', accountNumber: '0554772814' },
   })
   recipient: { name: string; accountNumber: string };
 }
@@ -209,16 +246,112 @@ export class WalletController {
       '**Double-entry ledger:** creates a `DEBIT` entry on the sender and a ' +
       '`CREDIT` entry on the recipient atomically in a single database transaction. ' +
       'Both entries share the same `journalId` for reconciliation.\n\n' +
+      'Requires the transaction PIN set via `POST /wallet/pin`.\n\n' +
       'Use `GET /wallet/lookup/:accountNumber` first to confirm the recipient ' +
       'before calling this endpoint.',
   })
   @ApiOkResponse({ type: TransferResponseShape })
   @ApiBadRequestResponse({
     description:
-      'Insufficient balance, self-transfer attempt, or amount below minimum.',
+      'Insufficient balance, self-transfer attempt, amount below minimum, ' +
+      'missing/incorrect transaction PIN, or no PIN set yet.',
   })
   @ApiNotFoundResponse({ description: 'Sender or recipient wallet not found.' })
   transfer(@CurrentUser() user: { id: string }, @Body() dto: TransferDto) {
     return this.walletService.transfer(user.id, dto);
+  }
+
+  /**
+   * GET /api/v1/wallet/banks
+   * List of Nomba-supported banks, for the "select bank" step.
+   */
+  @Get('banks')
+  @ApiOperation({
+    summary: 'List supported banks',
+    description: 'Returns bank codes/names for the withdrawal "select bank" step. Cached server-side.',
+  })
+  @ApiOkResponse({ type: [BankShape] })
+  getBanks() {
+    return this.walletService.getBankList();
+  }
+
+  /**
+   * POST /api/v1/wallet/resolve-bank-account
+   * Verifies a destination account and returns its real account name —
+   * use this on the "confirm recipient" step before withdrawing.
+   */
+  @Post('resolve-bank-account')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({
+    summary: 'Verify a bank account before withdrawing',
+    description:
+      'Looks up the real account name for an accountNumber + bankCode pair. ' +
+      'Use this to show the recipient name for confirmation before calling `/wallet/withdraw`.',
+  })
+  @ApiOkResponse({ type: ResolvedAccountShape })
+  @ApiBadRequestResponse({ description: 'Could not verify that account number.' })
+  resolveBankAccount(@Body() dto: ResolveBankAccountDto) {
+    return this.walletService.resolveBankAccount(dto);
+  }
+
+  /**
+   * GET /api/v1/wallet/beneficiaries
+   * Saved external-bank accounts, most recently used first.
+   */
+  @Get('beneficiaries')
+  @ApiOperation({
+    summary: 'List saved withdrawal beneficiaries',
+    description: 'Bank accounts previously used for withdrawal, auto-saved on each successful transfer.',
+  })
+  @ApiOkResponse({ type: [BeneficiaryShape] })
+  getBeneficiaries(@CurrentUser() user: { id: string }) {
+    return this.walletService.listBeneficiaries(user.id);
+  }
+
+  /**
+   * POST /api/v1/wallet/pin
+   * Sets or changes the 4-digit transaction PIN required to withdraw.
+   */
+  @Post('pin')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({
+    summary: 'Set or change transaction PIN',
+    description:
+      'Required before the first withdrawal. Pass `currentPin` when changing an existing PIN.',
+  })
+  @ApiOkResponse({ description: 'PIN set successfully.' })
+  @ApiBadRequestResponse({ description: 'Current PIN missing or incorrect.' })
+  setTransactionPin(@CurrentUser() user: { id: string }, @Body() dto: SetTransactionPinDto) {
+    return this.walletService.setTransactionPin(user.id, dto);
+  }
+
+  /**
+   * POST /api/v1/wallet/withdraw
+   * Withdraws funds to an external bank account via Nomba payout.
+   */
+  @Post('withdraw')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({
+    summary: 'Withdraw funds to a bank account',
+    description:
+      'Sends money from the wallet to an external bank account via Nomba.\n\n' +
+      '**Flow:**\n' +
+      '1. `GET /wallet/banks` — populate the bank picker\n' +
+      '2. `POST /wallet/resolve-bank-account` — verify recipient name\n' +
+      '3. `POST /wallet/withdraw` — confirm with amount + PIN\n\n' +
+      'Provide either `beneficiaryId` (a saved account) or a fresh ' +
+      '`accountNumber` + `bankCode` pair — the latter is auto-saved as a ' +
+      'beneficiary on success. Requires a transaction PIN — see `POST /wallet/pin`.\n\n' +
+      'A `PENDING` status means the transfer is still being confirmed by ' +
+      'the bank rail; the wallet has already been debited and the final ' +
+      'outcome (success or refund) arrives via webhook shortly after.',
+  })
+  @ApiOkResponse({ type: WithdrawResponseShape })
+  @ApiBadRequestResponse({
+    description: 'Insufficient balance, incorrect PIN, invalid destination, or amount below minimum.',
+  })
+  @ApiNotFoundResponse({ description: 'Wallet or beneficiary not found.' })
+  withdraw(@CurrentUser() user: { id: string }, @Body() dto: WithdrawDto) {
+    return this.walletService.withdraw(user.id, dto);
   }
 }

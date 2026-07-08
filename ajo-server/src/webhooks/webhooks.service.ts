@@ -123,19 +123,47 @@ export class WebhooksService {
 
   private async handlePayoutSuccess(payload: NombaWebhookPayload): Promise<void> {
     const nombaReference = payload.data.transaction.transactionId;
+    const merchantTxRef = payload.data.transaction.merchantTxRef;
+
+    // Match by OUR merchantTxRef, not Nomba's transactionId. We generate
+    // merchantTxRef ourselves and it's guaranteed to be set on the
+    // Transaction row before the payout is ever initiated (see
+    // wallet.service.ts withdraw()); Nomba's transfer `id` can be absent
+    // synchronously on a "still processing" response, so it isn't a
+    // reliable key to have pre-stored for matching. Same lesson as the
+    // checkout orderReference mismatch this app hit earlier.
+    if (!merchantTxRef) {
+      this.logger.warn(`payout_success missing transaction.merchantTxRef nombaRef=${nombaReference}`);
+      return;
+    }
+
     const txn = await this.prisma.transaction.findFirst({
-      where: { nombaReference, type: 'WITHDRAWAL' },
+      where: { reference: merchantTxRef, type: 'WITHDRAWAL' },
     });
-    if (!txn) { this.logger.warn(`payout_success: no withdrawal for ${nombaReference}`); return; }
+    if (!txn) {
+      this.logger.warn(`payout_success: no withdrawal for merchantTxRef=${merchantTxRef}`);
+      return;
+    }
+
+    if (txn.status !== 'PENDING') {
+      // Already resolved — either wallet.service.ts's own optimistic update
+      // (when Nomba's synchronous response was already SUCCESS) or a
+      // duplicate webhook delivery. Either way, don't credit twice.
+      this.logger.log(`Duplicate/late payout_success — txnId=${txn.id} already ${txn.status}`);
+      return;
+    }
+
     await this.prisma.transaction.update({
       where: { id: txn.id },
-      data: { status: 'SUCCESSFUL', nombaWebhookData: payload as object },
+      data: { status: 'SUCCESSFUL', nombaReference, nombaWebhookData: payload as object },
     });
     this.logger.log(`Withdrawal confirmed: txnId=${txn.id}`);
   }
 
   private async handleFailed(payload: NombaWebhookPayload): Promise<void> {
+    const { event_type } = payload;
     const nombaReference = payload.data.transaction.transactionId;
+    const merchantTxRef = payload.data.transaction.merchantTxRef;
     const orderReference = payload.data.order?.orderReference;
 
     // Deliberately NOT deleting the PendingCheckout here. A failed attempt
@@ -151,20 +179,39 @@ export class WebhooksService {
       );
     }
 
-    const txn = await this.prisma.transaction.findFirst({ where: { nombaReference } });
+    // Payouts are matched by OUR merchantTxRef (same reasoning as
+    // handlePayoutSuccess above) — checkout deposit failures fall back to
+    // nombaReference, which is fine there since no Transaction row exists
+    // yet for an unconfirmed deposit anyway (this branch is effectively a
+    // no-op log for those).
+    const txn =
+      event_type === 'payout_failed'
+        ? merchantTxRef
+          ? await this.prisma.transaction.findFirst({
+              where: { reference: merchantTxRef, type: 'WITHDRAWAL' },
+            })
+          : null
+        : await this.prisma.transaction.findFirst({ where: { nombaReference } });
+
     if (!txn) {
-      this.logger.warn(`Transaction failed: ${payload.event_type} nombaRef=${nombaReference} (no matching txn)`);
+      this.logger.warn(
+        `Transaction failed: ${event_type} ref=${merchantTxRef ?? nombaReference} (no matching txn)`,
+      );
       return;
     }
 
-    if (txn.type === 'WITHDRAWAL' && txn.status === 'PENDING') {
+    if (txn.type === 'WITHDRAWAL') {
+      if (txn.status !== 'PENDING') {
+        this.logger.log(`Duplicate ${event_type} webhook — txnId=${txn.id} already ${txn.status}`);
+        return;
+      }
       // Withdrawal was debited upfront when requested (see wallet.service.ts
       // withdraw()) — the bank payout failed, so that money never left and
       // must go back into the user's wallet.
       await this.prisma.$transaction(async (tx) => {
         await tx.transaction.update({
           where: { id: txn.id },
-          data: { status: 'FAILED', nombaWebhookData: payload as object },
+          data: { status: 'FAILED', nombaReference, nombaWebhookData: payload as object },
         });
         await tx.wallet.update({
           where: { id: txn.walletId },
@@ -179,7 +226,7 @@ export class WebhooksService {
       where: { id: txn.id },
       data: { status: 'FAILED', nombaWebhookData: payload as object },
     });
-    this.logger.warn(`Transaction failed: ${payload.event_type} nombaRef=${nombaReference}`);
+    this.logger.warn(`Transaction failed: ${event_type} nombaRef=${nombaReference}`);
   }
 
   private async handleReversal(payload: NombaWebhookPayload): Promise<void> {

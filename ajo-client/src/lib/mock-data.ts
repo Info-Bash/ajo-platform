@@ -12,6 +12,7 @@ export const MOCK_DASHBOARD: DashboardSummary = {
     accountNumber: "8031234567",
     balance: 245000,
     currency: "NGN",
+    hasTransactionPin: true,
   },
   activeGroupsCount: 3,
   completedGroupsCount: 4,

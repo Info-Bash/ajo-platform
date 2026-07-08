@@ -17,11 +17,26 @@ import {
   FieldGroup,
   FieldLabel,
 } from "@/components/ui/field"
-import { useWallet, useLookupAccount, useTransfer } from "@/hooks/use-wallet"
-import { transferSchema, type TransferValues } from "@/lib/wallet-schemas"
+import {
+  InputOTP,
+  InputOTPGroup,
+  InputOTPSlot,
+} from "@/components/ui/input-otp"
+import {
+  useWallet,
+  useLookupAccount,
+  useTransfer,
+  useSetTransactionPin,
+} from "@/hooks/use-wallet"
+import {
+  transferSchema,
+  type TransferValues,
+  setPinSchema,
+  type SetPinValues,
+} from "@/lib/wallet-schemas"
 import { formatNaira } from "@/components/wallet/transaction-row"
 
-type Step = "details" | "confirm" | "success"
+type Step = "set-pin" | "details" | "confirm" | "success"
 
 function initials(name: string) {
   return name
@@ -34,11 +49,21 @@ function initials(name: string) {
 
 export default function TransferPage() {
   const router = useRouter()
-  const { data: wallet } = useWallet()
+  const wallet = useWallet()
   const transfer = useTransfer()
+  const setTransactionPin = useSetTransactionPin()
 
   const [step, setStep] = React.useState<Step>("details")
+  // Once we know whether a PIN exists, route to the right starting step.
+  const [stepInitialized, setStepInitialized] = React.useState(false)
+  React.useEffect(() => {
+    if (stepInitialized || !wallet.data) return
+    setStep(wallet.data.hasTransactionPin ? "details" : "set-pin")
+    setStepInitialized(true)
+  }, [wallet.data, stepInitialized])
+
   const [successMessage, setSuccessMessage] = React.useState("")
+  const [pin, setPin] = React.useState("")
 
   const { control, handleSubmit, watch, trigger, formState } =
     useForm<TransferValues>({
@@ -46,6 +71,17 @@ export default function TransferPage() {
       defaultValues: { accountNumber: "", amount: 0, description: "" },
       mode: "onChange",
     })
+
+  const {
+    control: pinControl,
+    handleSubmit: handlePinSubmit,
+    watch: watchPin,
+  } = useForm<SetPinValues>({
+    resolver: zodResolver(setPinSchema),
+    defaultValues: { pin: "", confirmPin: "" },
+  })
+  const newPin = watchPin("pin")
+  const confirmPin = watchPin("confirmPin")
 
   const accountNumber = watch("accountNumber") ?? ""
   const amount = watch("amount") ?? 0
@@ -59,19 +95,41 @@ export default function TransferPage() {
     setStep("confirm")
   }
 
+  function onSetPin(values: SetPinValues) {
+    setTransactionPin.mutate(
+      { pin: values.pin },
+      { onSuccess: () => setStep("details") }
+    )
+  }
+
   function onConfirm(values: TransferValues) {
+    if (pin.length !== 4) return
     transfer.mutate(
       {
         accountNumber: values.accountNumber,
         amount: values.amount,
         description: values.description || undefined,
+        pin,
       },
       {
         onSuccess: (data) => {
           setSuccessMessage(data.message)
           setStep("success")
         },
+        onError: () => setPin(""),
       }
+    )
+  }
+
+  // ─── Loading gate (need wallet.data to know which step to start on) ──────
+
+  if (!stepInitialized) {
+    return (
+      <div className="p-4 pt-6 lg:p-8">
+        <div className="mx-auto flex max-w-md items-center justify-center pt-20">
+          <Loader2 className="size-5 animate-spin text-text-muted" />
+        </div>
+      </div>
     )
   }
 
@@ -96,6 +154,7 @@ export default function TransferPage() {
               onClick={() => {
                 setStep("details")
                 setSuccessMessage("")
+                setPin("")
               }}
             >
               Send another transfer
@@ -110,7 +169,14 @@ export default function TransferPage() {
     <div className="p-4 pt-6 lg:p-8">
       <div className="mx-auto max-w-md space-y-6">
         <button
-          onClick={() => (step === "confirm" ? setStep("details") : router.push("/wallet"))}
+          onClick={() => {
+            if (step === "confirm") {
+              setPin("")
+              setStep("details")
+            } else {
+              router.push("/wallet")
+            }
+          }}
           className="inline-flex items-center gap-1.5 text-sm text-text-muted transition-colors hover:text-foreground"
         >
           <ArrowLeft className="size-4" />
@@ -119,12 +185,97 @@ export default function TransferPage() {
 
         <div>
           <h1 className="text-xl font-semibold text-foreground">Transfer</h1>
-          {wallet && (
+          {wallet.data && (
             <p className="text-sm text-text-muted">
-              Available balance: {formatNaira(wallet.balance)}
+              Available balance: {formatNaira(wallet.data.balance)}
             </p>
           )}
         </div>
+
+        {/* ─── Set PIN (first-time only) ─────────────────────────────── */}
+        {step === "set-pin" && (
+          <form onSubmit={handlePinSubmit(onSetPin)}>
+            <FieldGroup>
+              <p className="text-sm text-text-secondary">
+                Set a 4-digit transaction PIN. You&apos;ll need it to confirm
+                transfers.
+              </p>
+
+              <Controller
+                name="pin"
+                control={pinControl}
+                render={({ field }) => (
+                  <Field>
+                    <FieldLabel>PIN</FieldLabel>
+                    <div className="flex justify-center">
+                      <InputOTP
+                        maxLength={4}
+                        value={field.value}
+                        onChange={field.onChange}
+                        disabled={setTransactionPin.isPending}
+                      >
+                        <InputOTPGroup>
+                          <InputOTPSlot index={0} />
+                          <InputOTPSlot index={1} />
+                          <InputOTPSlot index={2} />
+                          <InputOTPSlot index={3} />
+                        </InputOTPGroup>
+                      </InputOTP>
+                    </div>
+                  </Field>
+                )}
+              />
+
+              <Controller
+                name="confirmPin"
+                control={pinControl}
+                render={({ field, fieldState }) => (
+                  <Field data-invalid={fieldState.invalid}>
+                    <FieldLabel>Confirm PIN</FieldLabel>
+                    <div className="flex justify-center">
+                      <InputOTP
+                        maxLength={4}
+                        value={field.value}
+                        onChange={field.onChange}
+                        disabled={setTransactionPin.isPending}
+                      >
+                        <InputOTPGroup>
+                          <InputOTPSlot index={0} />
+                          <InputOTPSlot index={1} />
+                          <InputOTPSlot index={2} />
+                          <InputOTPSlot index={3} />
+                        </InputOTPGroup>
+                      </InputOTP>
+                    </div>
+                    {fieldState.invalid && (
+                      <div className="flex justify-center">
+                        <FieldError errors={[fieldState.error]} />
+                      </div>
+                    )}
+                  </Field>
+                )}
+              />
+
+              {setTransactionPin.isError && (
+                <p className="text-center text-sm text-destructive">
+                  {setTransactionPin.error.message}
+                </p>
+              )}
+
+              <Button
+                type="submit"
+                className="w-full"
+                disabled={
+                  setTransactionPin.isPending ||
+                  newPin.length !== 4 ||
+                  confirmPin.length !== 4
+                }
+              >
+                {setTransactionPin.isPending ? "Saving…" : "Set PIN"}
+              </Button>
+            </FieldGroup>
+          </form>
+        )}
 
         {step === "details" && (
           <form
@@ -205,7 +356,7 @@ export default function TransferPage() {
                       id="amount"
                       type="number"
                       min={20}
-                      max={wallet?.balance}
+                      max={wallet.data?.balance}
                       inputMode="numeric"
                       placeholder="500"
                       value={field.value || ""}
@@ -215,7 +366,7 @@ export default function TransferPage() {
                       onBlur={field.onBlur}
                       aria-invalid={fieldState.invalid}
                     />
-                    {wallet && field.value > wallet.balance ? (
+                    {wallet.data && field.value > wallet.data.balance ? (
                       <FieldError
                         errors={[{ message: "Amount exceeds your available balance" }]}
                       />
@@ -253,7 +404,7 @@ export default function TransferPage() {
                 disabled={
                   !lookup.data ||
                   !formState.isValid ||
-                  (wallet ? amount > wallet.balance : false)
+                  (wallet.data ? amount > wallet.data.balance : false)
                 }
               >
                 Continue
@@ -293,11 +444,34 @@ export default function TransferPage() {
                 )}
               </div>
 
+              <Field>
+                <FieldLabel>Enter your transaction PIN</FieldLabel>
+                <div className="flex justify-center">
+                  <InputOTP
+                    maxLength={4}
+                    value={pin}
+                    onChange={setPin}
+                    disabled={transfer.isPending}
+                  >
+                    <InputOTPGroup>
+                      <InputOTPSlot index={0} />
+                      <InputOTPSlot index={1} />
+                      <InputOTPSlot index={2} />
+                      <InputOTPSlot index={3} />
+                    </InputOTPGroup>
+                  </InputOTP>
+                </div>
+              </Field>
+
               {transfer.isError && (
-                <p className="text-sm text-destructive">{transfer.error.message}</p>
+                <p className="text-center text-sm text-destructive">{transfer.error.message}</p>
               )}
 
-              <Button type="submit" className="w-full" disabled={transfer.isPending}>
+              <Button
+                type="submit"
+                className="w-full"
+                disabled={transfer.isPending || pin.length !== 4}
+              >
                 {transfer.isPending ? (
                   <>
                     <Loader2 className="size-4 animate-spin" />

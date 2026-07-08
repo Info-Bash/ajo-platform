@@ -140,6 +140,11 @@ model User {
   // Reputation 0-100, recomputed after each contribution event
   reputationScore Int @default(100)
 
+  // Hashed 4-digit PIN required to authorize sensitive money-movement
+  // actions (currently: bank withdrawals). Null until the user sets one.
+  // Never store the raw PIN — bcrypt hash only, same pattern as passwordHash.
+  transactionPinHash String?
+
   // Denormalised lifetime stats — faster than aggregating at query time.
   // These are incremented/decremented by the service layer on each event.
   totalGroupsJoined      Int @default(0)
@@ -337,6 +342,7 @@ model Beneficiary {
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
+  @@unique([userId, accountNumber, bankCode])
   @@index([userId])
   @@map("beneficiaries")
 }

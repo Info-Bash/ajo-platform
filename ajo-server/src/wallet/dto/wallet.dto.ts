@@ -7,6 +7,7 @@ import {
   Min,
   IsIn,
   IsNumber,
+  Length,
 } from 'class-validator';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 
@@ -48,6 +49,101 @@ export class TransferDto {
   @IsString()
   @IsOptional()
   description?: string;
+
+  @ApiProperty({
+    example: '1234',
+    description: "The user's 4-digit transaction PIN.",
+  })
+  @IsString()
+  @Length(4, 4, { message: 'PIN must be exactly 4 digits' })
+  pin: string;
+}
+
+export class ResolveBankAccountDto {
+  @ApiProperty({
+    example: '0554772814',
+    description: 'The destination bank account number to verify.',
+  })
+  @IsString()
+  @IsNotEmpty()
+  accountNumber: string;
+
+  @ApiProperty({
+    example: '058',
+    description: "The recipient bank's code, from GET /wallet/banks.",
+  })
+  @IsString()
+  @IsNotEmpty()
+  bankCode: string;
+}
+
+export class WithdrawDto {
+  @ApiProperty({
+    example: 5000,
+    description: 'Amount to withdraw in **Naira**. Minimum ₦100.',
+    minimum: 100,
+  })
+  @IsNumber()
+  @Min(100, { message: 'Minimum withdrawal amount is ₦100' })
+  amount: number;
+
+  @ApiPropertyOptional({
+    description:
+      'ID of a previously saved beneficiary to withdraw to. Provide this ' +
+      'OR (accountNumber + bankCode), not both.',
+    example: 'clx-beneficiary-id',
+  })
+  @IsString()
+  @IsOptional()
+  beneficiaryId?: string;
+
+  @ApiPropertyOptional({
+    example: '0554772814',
+    description: 'Destination account number. Required if beneficiaryId is not provided.',
+  })
+  @IsString()
+  @IsOptional()
+  accountNumber?: string;
+
+  @ApiPropertyOptional({
+    example: '058',
+    description: 'Destination bank code. Required if beneficiaryId is not provided.',
+  })
+  @IsString()
+  @IsOptional()
+  bankCode?: string;
+
+  @ApiProperty({
+    example: '1234',
+    description: "The user's 4-digit transaction PIN.",
+  })
+  @IsString()
+  @Length(4, 4, { message: 'PIN must be exactly 4 digits' })
+  pin: string;
+
+  @ApiPropertyOptional({
+    example: 'Rent payout',
+    description: 'Optional note attached to the transaction.',
+  })
+  @IsString()
+  @IsOptional()
+  narration?: string;
+}
+
+export class SetTransactionPinDto {
+  @ApiProperty({ example: '1234', description: 'New 4-digit transaction PIN.' })
+  @IsString()
+  @Length(4, 4, { message: 'PIN must be exactly 4 digits' })
+  pin: string;
+
+  @ApiPropertyOptional({
+    example: '0000',
+    description: 'Required only when changing an existing PIN.',
+  })
+  @IsString()
+  @IsOptional()
+  @Length(4, 4, { message: 'PIN must be exactly 4 digits' })
+  currentPin?: string;
 }
 
 export class GetTransactionsDto {

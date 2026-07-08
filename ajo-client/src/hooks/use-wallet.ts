@@ -24,6 +24,7 @@ interface BackendWallet {
   balanceKobo: number
   balanceNaira: number
   createdAt: string
+  hasTransactionPin: boolean
 }
 
 type BackendTransactionType =
@@ -73,6 +74,7 @@ function mapWallet(raw: BackendWallet): Wallet {
     accountNumber: raw.accountNumber,
     balance: raw.balanceNaira,
     currency: "NGN",
+    hasTransactionPin: raw.hasTransactionPin,
   }
 }
 
@@ -206,6 +208,7 @@ interface TransferPayload {
   accountNumber: string
   amount: number
   description?: string
+  pin: string
 }
 
 export function useTransfer() {
@@ -219,6 +222,112 @@ export function useTransfer() {
       queryClient.invalidateQueries({ queryKey: queryKeys.wallet() })
       queryClient.invalidateQueries({ queryKey: queryKeys.transactions() })
       queryClient.invalidateQueries({ queryKey: queryKeys.dashboard() })
+    },
+  })
+}
+
+// ─── Bank withdrawal ────────────────────────────────────────────────────────
+
+interface Bank {
+  code: string
+  name: string
+}
+
+/** Bank list for the "select bank" step. Cached server-side; cached here too. */
+export function useBankList() {
+  return useQuery<Bank[]>({
+    queryKey: ["wallet-banks"],
+    queryFn: () => apiClient.get<Bank[]>("/wallet/banks"),
+    staleTime: 60 * 60 * 1000, // 1 hour — bank codes essentially never change
+  })
+}
+
+interface ResolvedAccount {
+  accountNumber: string
+  accountName: string
+}
+
+/**
+ * Verifies a destination bank account and returns the real account name,
+ * so the withdrawal flow can show a "confirm recipient" step. Only enabled
+ * once both fields look complete, mirroring useLookupAccount's pattern.
+ */
+export function useResolveBankAccount(accountNumber: string, bankCode: string) {
+  const enabled = /^\d{10}$/.test(accountNumber) && bankCode.length > 0
+
+  return useQuery<ResolvedAccount, ApiError>({
+    queryKey: ["wallet-resolve-bank-account", accountNumber, bankCode],
+    queryFn: () =>
+      apiClient.post<ResolvedAccount>("/wallet/resolve-bank-account", {
+        accountNumber,
+        bankCode,
+      }),
+    enabled,
+    retry: false,
+    staleTime: 30_000,
+  })
+}
+
+export interface Beneficiary {
+  id: string
+  name: string
+  accountNumber: string
+  bankName: string
+  bankCode?: string
+}
+
+/** Previously used bank accounts, most recent first — for quick re-selection. */
+export function useBeneficiaries() {
+  return useQuery<Beneficiary[]>({
+    queryKey: ["wallet-beneficiaries"],
+    queryFn: () => apiClient.get<Beneficiary[]>("/wallet/beneficiaries"),
+  })
+}
+
+interface SetPinPayload {
+  pin: string
+  currentPin?: string
+}
+
+export function useSetTransactionPin() {
+  const queryClient = useQueryClient()
+
+  return useMutation<{ message: string }, ApiError, SetPinPayload>({
+    mutationFn: (data) => apiClient.post<{ message: string }>("/wallet/pin", data),
+    onSuccess: () => {
+      // hasTransactionPin flips on the wallet payload
+      queryClient.invalidateQueries({ queryKey: queryKeys.wallet() })
+    },
+  })
+}
+
+interface WithdrawResponse {
+  message: string
+  reference: string
+  amount: number
+  status: "SUCCESSFUL" | "PENDING"
+  recipient: { name: string; accountNumber: string }
+}
+
+interface WithdrawPayload {
+  amount: number
+  pin: string
+  narration?: string
+  beneficiaryId?: string
+  accountNumber?: string
+  bankCode?: string
+}
+
+export function useWithdraw() {
+  const queryClient = useQueryClient()
+
+  return useMutation<WithdrawResponse, ApiError, WithdrawPayload>({
+    mutationFn: (data) => apiClient.post<WithdrawResponse>("/wallet/withdraw", data),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: queryKeys.wallet() })
+      queryClient.invalidateQueries({ queryKey: queryKeys.transactions() })
+      queryClient.invalidateQueries({ queryKey: queryKeys.dashboard() })
+      queryClient.invalidateQueries({ queryKey: ["wallet-beneficiaries"] })
     },
   })
 }
