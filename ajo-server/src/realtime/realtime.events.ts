@@ -21,6 +21,9 @@ export const REALTIME_EVENTS = {
   CHAT_MESSAGE: 'chat:message',
   CHAT_SYSTEM_MESSAGE: 'chat:system_message',
 
+  // Direct message events
+  DIRECT_MESSAGE: 'dm:message',
+
   // Notifications — generic envelope, fired alongside the specific event
   // above so the client can maintain a single notification feed.
   NOTIFICATION: 'notification:new',

@@ -8,15 +8,15 @@ import {
 } from 'class-validator';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 
-export class SendMessageDto {
-  @ApiProperty({ example: "Don't forget — contribution is due tomorrow!" })
+export class SendDirectMessageDto {
+  @ApiProperty({ example: "Hey! Saw you're also in the Lagos Hustlers circle 👋" })
   @IsString()
   @IsNotEmpty()
   @MaxLength(2000)
   content: string;
 }
 
-export class GetMessagesDto {
+export class GetDirectMessagesDto {
   @ApiPropertyOptional({ example: 1, minimum: 1 })
   @IsOptional()
   @IsInt()

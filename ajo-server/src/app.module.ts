@@ -13,6 +13,7 @@ import { ChatModule } from './chat/chat.module';
 import { FriendsModule } from './friends/friends.module';
 import { ContributionsModule } from './contributions/contributions.module';
 import { PayoutsModule } from './payouts/payouts.module';
+import { DirectMessagesModule } from './direct-messages/direct-messages.module';
 import { configFactory, validationSchema } from './config/app.config';
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
@@ -38,6 +39,7 @@ import { AppService } from './app.service';
     GroupsModule,
     PayoutsModule,
     ContributionsModule,
+    DirectMessagesModule,
     // NotificationsModule — dedicated read/list endpoints for Notification rows
     // NotificationsModule,
   ],
