@@ -19,6 +19,28 @@ function formatTime(iso: string) {
   return new Date(iso).toLocaleTimeString("en-NG", { hour: "numeric", minute: "2-digit" })
 }
 
+// Alternating bubble widths/sides so the loading state actually reads as a
+// conversation rather than a generic list of gray bars.
+const SKELETON_BUBBLES = [
+  { side: "left", width: "w-2/5" },
+  { side: "right", width: "w-1/3" },
+  { side: "left", width: "w-1/2" },
+  { side: "left", width: "w-1/4" },
+  { side: "right", width: "w-2/5" },
+] as const
+
+function ChatSkeleton() {
+  return (
+    <div className="space-y-3">
+      {SKELETON_BUBBLES.map((bubble, i) => (
+        <div key={i} className={`flex ${bubble.side === "right" ? "justify-end" : "justify-start"}`}>
+          <Skeleton className={`h-10 ${bubble.width} rounded-2xl`} />
+        </div>
+      ))}
+    </div>
+  )
+}
+
 export default function DirectMessageThreadPage({ params }: { params: Promise<{ userId: string }> }) {
   const { userId: otherUserId } = use(params)
   const { user } = useAuth()
@@ -47,9 +69,15 @@ export default function DirectMessageThreadPage({ params }: { params: Promise<{ 
   }
 
   return (
-    <div className="flex h-[calc(100vh-4rem)] flex-col p-4 pt-6 lg:p-8">
-      <div className="mx-auto flex w-full max-w-2xl flex-1 flex-col">
-        <div className="mb-4 flex items-center gap-3">
+    // Height = viewport minus the fixed topbar (3.5rem) minus the fixed
+    // mobile bottom tab bar (4rem, hidden on lg+). Getting this wrong is
+    // what caused the input to end up hidden behind the bottom bar and the
+    // whole page to scroll instead of just the message list — see the
+    // min-h-0 chain below for why the inner scroll area needs it too.
+    <div className="flex h-[calc(100dvh-3.5rem-4rem)] flex-col lg:h-[calc(100dvh-3.5rem)]">
+      <div className="mx-auto flex w-full min-h-0 max-w-2xl flex-1 flex-col">
+        {/* Header — fixed size, stays put */}
+        <div className="flex shrink-0 items-center gap-3 border-b border-border px-4 py-3 lg:px-8">
           <Link
             href="/messages"
             className="inline-flex items-center gap-1.5 text-sm text-text-muted transition-colors hover:text-foreground"
@@ -59,9 +87,10 @@ export default function DirectMessageThreadPage({ params }: { params: Promise<{ 
           <h1 className="font-semibold text-foreground">{friend?.fullName ?? "Conversation"}</h1>
         </div>
 
-        <div className="flex-1 space-y-3 overflow-y-auto pr-1">
+        {/* Messages — the only scrollable region */}
+        <div className="min-h-0 flex-1 space-y-3 overflow-y-auto px-4 py-3 lg:px-8">
           {isPending ? (
-            [0, 1, 2].map((i) => <Skeleton key={i} className="h-10 w-2/3 rounded-xl" />)
+            <ChatSkeleton />
           ) : (
             data?.messages.map((message) => (
               <div key={message.id} className={`flex ${message.senderId === user?.id ? "justify-end" : "justify-start"}`}>
@@ -81,19 +110,21 @@ export default function DirectMessageThreadPage({ params }: { params: Promise<{ 
           <div ref={bottomRef} />
         </div>
 
-        {error && <p className="mt-2 text-sm text-destructive" role="alert">{error}</p>}
-
-        <form onSubmit={handleSend} className="mt-3 flex gap-2 border-t border-border pt-3">
-          <Input
-            placeholder="Type a message…"
-            value={content}
-            onChange={(e) => setContent(e.target.value)}
-            className="flex-1"
-          />
-          <Button type="submit" size="icon" disabled={!content.trim() || sendMessage.isPending}>
-            <Send className="size-4" />
-          </Button>
-        </form>
+        {/* Input — fixed size, stays put */}
+        <div className="shrink-0 border-t border-border px-4 py-3 lg:px-8">
+          {error && <p className="mb-2 text-sm text-destructive" role="alert">{error}</p>}
+          <form onSubmit={handleSend} className="flex gap-2">
+            <Input
+              placeholder="Type a message…"
+              value={content}
+              onChange={(e) => setContent(e.target.value)}
+              className="flex-1"
+            />
+            <Button type="submit" size="icon" disabled={!content.trim() || sendMessage.isPending}>
+              <Send className="size-4" />
+            </Button>
+          </form>
+        </div>
       </div>
     </div>
   )

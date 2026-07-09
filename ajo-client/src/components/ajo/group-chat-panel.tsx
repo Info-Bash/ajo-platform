@@ -13,6 +13,28 @@ function formatTime(iso: string) {
   return new Date(iso).toLocaleTimeString("en-NG", { hour: "numeric", minute: "2-digit" })
 }
 
+// Alternating bubble widths/sides so the loading state actually reads as a
+// conversation rather than a generic list of gray bars.
+const SKELETON_BUBBLES = [
+  { side: "left", width: "w-2/5" },
+  { side: "right", width: "w-1/3" },
+  { side: "left", width: "w-1/2" },
+  { side: "left", width: "w-1/4" },
+  { side: "right", width: "w-2/5" },
+] as const
+
+function ChatSkeleton() {
+  return (
+    <div className="space-y-3">
+      {SKELETON_BUBBLES.map((bubble, i) => (
+        <div key={i} className={`flex ${bubble.side === "right" ? "justify-end" : "justify-start"}`}>
+          <Skeleton className={`h-10 ${bubble.width} rounded-2xl`} />
+        </div>
+      ))}
+    </div>
+  )
+}
+
 export function GroupChatPanel({ groupId }: { groupId: string }) {
   const { data, isPending } = useGroupMessages(groupId)
   const sendMessage = useSendGroupMessage(groupId)
@@ -35,18 +57,12 @@ export function GroupChatPanel({ groupId }: { groupId: string }) {
   }
 
   if (isPending) {
-    return (
-      <div className="space-y-3">
-        {[0, 1, 2].map((i) => (
-          <Skeleton key={i} className="h-10 w-2/3 rounded-xl" />
-        ))}
-      </div>
-    )
+    return <ChatSkeleton />
   }
 
   return (
     <div className="flex h-[60vh] flex-col">
-      <div className="flex-1 space-y-3 overflow-y-auto pr-1">
+      <div className="min-h-0 flex-1 space-y-3 overflow-y-auto pr-1">
         {data?.messages.map((message) =>
           message.type === "system" ? (
             <div key={message.id} className="text-center">
