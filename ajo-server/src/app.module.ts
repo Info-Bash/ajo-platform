@@ -8,6 +8,13 @@ import { WalletModule } from './wallet/wallet.module';
 import { MailModule } from './mail/mail.module';
 import { RealtimeModule } from './realtime/realtime.module';
 import { WebhooksModule } from './webhooks/webhooks.module';
+import { GroupsModule } from './groups/groups.module';
+import { ChatModule } from './chat/chat.module';
+import { FriendsModule } from './friends/friends.module';
+import { ContributionsModule } from './contributions/contributions.module';
+import { PayoutsModule } from './payouts/payouts.module';
+import { DirectMessagesModule } from './direct-messages/direct-messages.module';
+import { DashboardModule } from './dashboard/dashboard.module';
 import { configFactory, validationSchema } from './config/app.config';
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
@@ -28,11 +35,15 @@ import { AppService } from './app.service';
     AuthModule,
     WalletModule,
     WebhooksModule,
-    // GroupsModule,
-    // ContributionsModule,
-    // PayoutsModule,
+    ChatModule,
+    FriendsModule,
+    GroupsModule,
+    PayoutsModule,
+    ContributionsModule,
+    DirectMessagesModule,
+    DashboardModule,
+    // NotificationsModule — dedicated read/list endpoints for Notification rows
     // NotificationsModule,
-    // ChatModule,
   ],
   controllers: [AppController],
   providers: [AppService],

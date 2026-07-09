@@ -5,6 +5,9 @@ import {
   OnGatewayConnection,
   OnGatewayDisconnect,
   OnGatewayInit,
+  SubscribeMessage,
+  MessageBody,
+  ConnectedSocket,
   WebSocketGateway,
   WebSocketServer,
 } from '@nestjs/websockets';
@@ -18,12 +21,16 @@ import type { JwtPayload } from '../auth/jwt.strategy';
  * All server → client pushes go through that room (see RealtimeService),
  * never a broadcast, so one user can never see another's events.
  *
- * Group rooms (`group:<id>`) will be joined on demand once
- * GroupsModule exists — sockets will emit a `group:join` event carrying
- * the group id, and the gateway will verify membership before joining.
+ * Group rooms (`group:<id>`) are joined on demand — the client emits
+ * `group:join` with the group id, and the gateway verifies membership
+ * before joining (see handleJoinGroup below).
  */
 export function userRoom(userId: string): string {
   return `user:${userId}`;
+}
+
+export function groupRoom(groupId: string): string {
+  return `group:${groupId}`;
 }
 
 @WebSocketGateway({
@@ -73,6 +80,37 @@ export class RealtimeGateway
     if (userId) {
       this.logger.log(`Socket disconnected: userId=${userId} socketId=${client.id}`);
     }
+  }
+
+  // ─── Group rooms ────────────────────────────────────────────────────────
+  // Client calls this once it opens a group's chat screen, so it starts
+  // receiving that group's CHAT_MESSAGE/CHAT_SYSTEM_MESSAGE/MEMBER_* events.
+
+  @SubscribeMessage('group:join')
+  async handleJoinGroup(
+    @ConnectedSocket() client: Socket,
+    @MessageBody() data: { groupId: string },
+  ): Promise<void> {
+    const userId = client.data?.userId as string | undefined;
+    if (!userId || !data?.groupId) return;
+
+    const membership = await this.prisma.groupMember.findUnique({
+      where: { groupId_userId: { groupId: data.groupId, userId } },
+    });
+    if (!membership || membership.status === 'EXITED' || membership.status === 'INACTIVE') {
+      client.emit('group:join_error', { groupId: data.groupId, message: 'Not a member of this group' });
+      return;
+    }
+
+    await client.join(groupRoom(data.groupId));
+  }
+
+  @SubscribeMessage('group:leave')
+  handleLeaveGroup(
+    @ConnectedSocket() client: Socket,
+    @MessageBody() data: { groupId: string },
+  ): void {
+    if (data?.groupId) void client.leave(groupRoom(data.groupId));
   }
 
   // ─── Auth ───────────────────────────────────────────────────────────────

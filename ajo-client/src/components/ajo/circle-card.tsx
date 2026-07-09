@@ -20,6 +20,10 @@ export interface AjoCircle {
   /** e.g. "₦20,000 / week" */
   contributionSummary: string
   members: AjoMember[]
+  /** Total member count — pass this explicitly when `members` is a partial
+   *  list (e.g. list views that don't fetch full member details). Falls
+   *  back to members.length when omitted. */
+  memberCount?: number
   /** Status of the current user within this circle */
   myStatus: AjoStatus
   /** e.g. "Due in 3 days" or "Next payout: Jan 12" */
@@ -38,6 +42,7 @@ function CircleCard({ circle, onClick, className, ...props }: CircleCardProps) {
     name,
     contributionSummary,
     members,
+    memberCount,
     myStatus,
     scheduleNote,
     progressPercent,
@@ -71,7 +76,7 @@ function CircleCard({ circle, onClick, className, ...props }: CircleCardProps) {
           <div className="flex items-center justify-between text-xs text-muted-foreground">
             <span className="flex items-center gap-1">
               <Users className="size-3" />
-              {members.length} members
+              {memberCount ?? members.length} members
             </span>
             <span>{progressPercent}% complete</span>
           </div>
