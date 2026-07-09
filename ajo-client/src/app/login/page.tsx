@@ -22,7 +22,7 @@ import { loginSchema, type LoginValues } from "@/lib/auth-schemas"
 import { useLogin } from "@/hooks/use-auth-mutations"
 
 const API_BASE_URL =
-  process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:3000/api/v1"
+  process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:3001/api/v1"
 
 // Inner component that uses useSearchParams — must be inside a Suspense boundary
 function LoginForm() {

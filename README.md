@@ -101,14 +101,6 @@ Install dependencies:
 npm install
 ```
 
-Create a `.env` file:
-
-```env
-DATABASE_URL=
-DIRECT_URL=
-JWT_SECRET=
-```
-
 Generate Prisma client:
 
 ```bash
