@@ -3,6 +3,41 @@
 /* Enable class-based dark mode */
 @variant dark (&:where(.dark, .dark *));
 
+/*
+ * The shadcn-style primitives in components/ui (tabs, dropdown-menu, field,
+ * input-otp, ...) use bare `data-*:` variants like `data-active:`,
+ * `data-horizontal:`, `data-disabled:`. Tailwind v4 doesn't recognize those
+ * out of the box — only bracketed `data-[attr=value]:` works without a
+ * declaration. Without these, the classes are silently dropped (no error,
+ * no style), which is why e.g. Tabs rendered with a broken side-by-side
+ * layout instead of stacking. Radix sets `data-state`/`data-orientation`
+ * automatically; `data-active`/`data-inset`/`data-checked` also cover our
+ * own components that pass an explicit boolean `data-active={bool}` prop
+ * (e.g. input-otp.tsx) alongside Radix's state-based ones (e.g. tabs.tsx).
+ */
+@custom-variant data-active {
+  &[data-active=true] {
+    @slot;
+  }
+  &[data-state=active] {
+    @slot;
+  }
+}
+@custom-variant data-checked {
+  &[data-checked=true] {
+    @slot;
+  }
+  &[data-state=checked] {
+    @slot;
+  }
+}
+@custom-variant data-closed (&[data-state=closed]);
+@custom-variant data-disabled (&[data-disabled]);
+@custom-variant data-horizontal (&[data-orientation=horizontal]);
+@custom-variant data-inset (&[data-inset=true]);
+@custom-variant data-open (&[data-state=open]);
+@custom-variant data-vertical (&[data-orientation=vertical]);
+
 :root {
   /* ---------- Brand ---------- */
   --primary: #0F766E;
