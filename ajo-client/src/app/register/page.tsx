@@ -22,7 +22,7 @@ import { registerSchema, type RegisterValues } from "@/lib/auth-schemas"
 import { useRegister } from "@/hooks/use-auth-mutations"
 
 const API_BASE_URL =
-  process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:3000/api/v1"
+  process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:3001/api/v1"
 
 export default function RegisterPage() {
   const register = useRegister()

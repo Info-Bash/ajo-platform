@@ -1,98 +1,153 @@
-<p align="center">
-  <a href="http://nestjs.com/" target="blank"><img src="https://nestjs.com/img/logo-small.svg" width="120" alt="Nest Logo" /></a>
-</p>
+# Ajo Server
 
-[circleci-image]: https://img.shields.io/circleci/build/github/nestjs/nest/master?token=abc123def456
-[circleci-url]: https://circleci.com/gh/nestjs/nest
+Backend API for **Ajo** — a digital rotating-savings (ajo) platform. Members
+form circles, contribute on a schedule, and take turns receiving the pooled payout,
+with group chat, direct messaging, and auto-friending built on top.
 
-  <p align="center">A progressive <a href="http://nodejs.org" target="_blank">Node.js</a> framework for building efficient and scalable server-side applications.</p>
-    <p align="center">
-<a href="https://www.npmjs.com/~nestjscore" target="_blank"><img src="https://img.shields.io/npm/v/@nestjs/core.svg" alt="NPM Version" /></a>
-<a href="https://www.npmjs.com/~nestjscore" target="_blank"><img src="https://img.shields.io/npm/l/@nestjs/core.svg" alt="Package License" /></a>
-<a href="https://www.npmjs.com/~nestjscore" target="_blank"><img src="https://img.shields.io/npm/dm/@nestjs/common.svg" alt="NPM Downloads" /></a>
-<a href="https://circleci.com/gh/nestjs/nest" target="_blank"><img src="https://img.shields.io/circleci/build/github/nestjs/nest/master" alt="CircleCI" /></a>
-<a href="https://discord.gg/G7Qnnhy" target="_blank"><img src="https://img.shields.io/badge/discord-online-brightgreen.svg" alt="Discord"/></a>
-<a href="https://opencollective.com/nest#backer" target="_blank"><img src="https://opencollective.com/nest/backers/badge.svg" alt="Backers on Open Collective" /></a>
-<a href="https://opencollective.com/nest#sponsor" target="_blank"><img src="https://opencollective.com/nest/sponsors/badge.svg" alt="Sponsors on Open Collective" /></a>
-  <a href="https://paypal.me/kamilmysliwiec" target="_blank"><img src="https://img.shields.io/badge/Donate-PayPal-ff3f59.svg" alt="Donate us"/></a>
-    <a href="https://opencollective.com/nest#sponsor"  target="_blank"><img src="https://img.shields.io/badge/Support%20us-Open%20Collective-41B883.svg" alt="Support us"></a>
-  <a href="https://twitter.com/nestframework" target="_blank"><img src="https://img.shields.io/twitter/follow/nestframework.svg?style=social&label=Follow" alt="Follow us on Twitter"></a>
-</p>
-  <!--[![Backers on Open Collective](https://opencollective.com/nest/backers/badge.svg)](https://opencollective.com/nest#backer)
-  [![Sponsors on Open Collective](https://opencollective.com/nest/sponsors/badge.svg)](https://opencollective.com/nest#sponsor)-->
+Built with **NestJS 10 + Prisma + PostgreSQL**, real-time features via **Socket.IO**,
+and payments via **Nomba**.
 
-## Description
+> Full endpoint reference is auto-generated — once the server is running, open
+> **`/api/v1/docs`** for interactive Swagger docs.
 
-[Nest](https://github.com/nestjs/nest) framework TypeScript starter repository.
+---
 
-## Project setup
+## Tech stack
 
-```bash
-$ npm install
-```
+| Layer | Choice |
+|---|---|
+| Framework | NestJS 10 |
+| Database | PostgreSQL + Prisma ORM |
+| Auth | JWT (Passport), Google OAuth |
+| Realtime | Socket.IO (`@nestjs/websockets`) |
+| Payments | Nomba (virtual accounts, transfers, webhooks) |
+| Scheduling | `@nestjs/schedule` (cron) |
+| Docs | Swagger / OpenAPI |
 
-## Compile and run the project
+---
+
+## Getting started
+
+### 1. Install & configure
 
 ```bash
-# development
-$ npm run start
-
-# watch mode
-$ npm run start:dev
-
-# production mode
-$ npm run start:prod
+npm install
+cp .env.example .env   # then fill in the values below
 ```
 
-## Run tests
+### Required environment variables
+
+| Variable | Notes |
+|---|---|
+| `DATABASE_URL` | PostgreSQL connection string (**required**) |
+| `JWT_SECRET` | Signs access tokens — min 32 characters (**required**) |
+| `JWT_EXPIRES_IN` | Default `7d` |
+| `NODE_ENV` | `development` \| `staging` \| `production` — gates the dev-only `TESTING` contribution frequency |
+| `PORT` | Default `3001` |
+| `FRONTEND_URL` | Used for CORS + building invite/reset links |
+| `GOOGLE_CLIENT_ID` / `GOOGLE_CLIENT_SECRET` | Google OAuth login |
+| `NOMBA_API_KEY` / `NOMBA_SECRET_KEY` | Nomba API credentials |
+| `NOMBA_BASE_URL` | Default `https://api.nomba.com/v1` |
+| `NOMBA_ACCOUNT_ID` / `NOMBA_SUB_ACCOUNT_ID` | Nomba account identifiers |
+| `NOMBA_WEBHOOK_SIGNATURE_KEY` | Validates incoming Nomba webhooks |
+| `MAIL_HOST` / `MAIL_PORT` / `MAIL_USER` / `MAIL_PASS` | SMTP credentials for verification/reset emails |
+| `MAIL_FROM` / `MAIL_FROM_NAME` | Sender identity on outgoing emails |
+
+Everything except `DATABASE_URL` and `JWT_SECRET` has a sensible default or
+degrades gracefully (e.g. empty Nomba keys just mean payment features won't
+work) — see `src/config/app.config.ts` for the full Joi validation schema.
+The app refuses to boot if a required variable is missing or malformed.
+
+### 2. Set up the database
 
 ```bash
-# unit tests
-$ npm run test
-
-# e2e tests
-$ npm run test:e2e
-
-# test coverage
-$ npm run test:cov
+npx prisma migrate dev   # applies migrations + generates the Prisma client
 ```
 
-## Deployment
-
-When you're ready to deploy your NestJS application to production, there are some key steps you can take to ensure it runs as efficiently as possible. Check out the [deployment documentation](https://docs.nestjs.com/deployment) for more information.
-
-If you are looking for a cloud-based platform to deploy your NestJS application, check out [Mau](https://mau.nestjs.com), our official platform for deploying NestJS applications on AWS. Mau makes deployment straightforward and fast, requiring just a few simple steps:
+### 3. Run it
 
 ```bash
-$ npm install -g @nestjs/mau
-$ mau deploy
+npm run start:dev     # watch mode
+npm run build && npm run start:prod   # production
 ```
 
-With Mau, you can deploy your application in just a few clicks, allowing you to focus on building features rather than managing infrastructure.
+The API is served under the `/api/v1` prefix, e.g. `http://localhost:3001/api/v1`.
 
-## Resources
+---
 
-Check out a few resources that may come in handy when working with NestJS:
+## Architecture
 
-- Visit the [NestJS Documentation](https://docs.nestjs.com) to learn more about the framework.
-- For questions and support, please visit our [Discord channel](https://discord.gg/G7Qnnhy).
-- To dive deeper and get more hands-on experience, check out our official video [courses](https://courses.nestjs.com/).
-- Deploy your application to AWS with the help of [NestJS Mau](https://mau.nestjs.com) in just a few clicks.
-- Visualize your application graph and interact with the NestJS application in real-time using [NestJS Devtools](https://devtools.nestjs.com).
-- Need help with your project (part-time to full-time)? Check out our official [enterprise support](https://enterprise.nestjs.com).
-- To stay in the loop and get updates, follow us on [X](https://x.com/nestframework) and [LinkedIn](https://linkedin.com/company/nestjs).
-- Looking for a job, or have a job to offer? Check out our official [Jobs board](https://jobs.nestjs.com).
+Each domain is its own Nest module under `src/`:
 
-## Support
+| Module | Responsibility |
+|---|---|
+| `auth` | Register/login, email verification, Google OAuth, JWT guard |
+| `wallet` | Virtual accounts (Nomba), fund/withdraw/transfer, transaction ledger |
+| `groups` | Ajo group lifecycle — create, discover, join (invite link / request+approve), activation, membership |
+| `contributions` | Per-round contribution payments, reminders, late/default tracking, round progression (cron-driven) |
+| `payouts` | Releases the collected pot to a round's recipient (or withholds it if they've defaulted) |
+| `chat` | Per-group chat, plus automatic system messages ("member joined", "payout released", etc.) |
+| `friends` | Auto-friending between co-members of a group |
+| `direct-messages` | 1:1 messaging between friends |
+| `dashboard` | Aggregated home-screen summary (wallet + groups + next contribution/payout) |
+| `realtime` | Socket.IO gateway — per-user rooms (`user:<id>`) and per-group rooms (`group:<id>`) |
+| `webhooks` | Nomba payment webhook handling |
+| `mail` | Transactional email (verification, password reset) |
+| `nomba` | Nomba API client wrapper |
+| `prisma` | Database client (global module) |
+| `common` | Shared guards, decorators, filters, utils |
 
-Nest is an MIT-licensed open source project. It can grow thanks to the sponsors and support by the amazing backers. If you'd like to join them, please [read more here](https://docs.nestjs.com/support).
+### Key design decisions
 
-## Stay in touch
+- **Groups are fixed-size rotations.** `cycleLength` set at creation = both the
+  target member count and the number of rounds. Payout order is FIFO by join
+  order, locked in the instant someone joins (not deferred to activation).
+- **Two activation modes**, chosen by the creator: `AUTO_START_WHEN_FULL` or
+  `MANUAL_START_BY_ADMIN`. A manual start before the group is full shrinks
+  `cycleLength`/the pot to the actual member count — each member still pays
+  the rate they signed up for.
+- **Public vs private groups**: private groups join instantly via invite
+  code/link; public groups go through a join-request → admin-approval flow
+  and are listed on the discovery page while `PENDING`.
+- **Contribution engine is cron-driven** (`ContributionsCronService`, runs
+  every minute): posts a reminder mid-round, flips `PENDING → LATE` past the
+  due date, flips `LATE → DEFAULTED` past the grace period, and finalizes a
+  round (releases the payout, opens the next round) the instant every
+  contribution in it is resolved.
+- **Payout = actual amount collected**, not the theoretical full pot — if
+  someone defaults, the recipient gets a smaller payout rather than the group
+  absorbing the shortfall. If the recipient themselves has since defaulted or
+  exited, the payout is recorded as withheld rather than paid out, pending
+  manual review (no auto-redistribution yet).
+- **Dev-only `TESTING` frequency**: 3-minute rounds with a 1-minute grace
+  period, so the whole contribution → late → default → payout cycle can be
+  exercised in minutes. Rejected outside `development`/`staging`
+  (`NODE_ENV=production` blocks it) — safe to delete entirely before a real launch.
+- **Double-entry ledger**: every wallet movement (fund, withdraw, transfer,
+  contribution, payout) writes two `Transaction` rows sharing a `journalId`,
+  debit and credit, so balances are always reconcilable.
 
-- Author - [Kamil Myśliwiec](https://twitter.com/kammysliwiec)
-- Website - [https://nestjs.com](https://nestjs.com/)
-- Twitter - [@nestframework](https://twitter.com/nestframework)
+### Known gaps / intentionally out of scope (for now)
 
-## License
+- No flow for leaving an **active** (already-started) group — leaving is only
+  supported pre-activation. Defaulting is currently the only way to exit an
+  active group's rotation.
+- No redistribution mechanism for withheld payouts (defaulted recipient) —
+  currently a manual/future admin action.
+- No push notifications beyond in-app/socket — `Notification` rows are
+  created and pushed over the socket, but there's no dedicated
+  list/mark-as-read REST endpoint yet.
 
-Nest is [MIT licensed](https://github.com/nestjs/nest/blob/master/LICENSE).
+---
+
+## Scripts
+
+```bash
+npm run start:dev      # dev server, watch mode
+npm run build           # compile to dist/
+npm run start:prod      # run compiled build
+npm run lint             # eslint
+npm run test              # unit tests
+npx prisma studio       # browse the database
+npx prisma migrate dev  # create + apply a migration
+```
