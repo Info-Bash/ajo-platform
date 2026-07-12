@@ -5,6 +5,12 @@ Frontend for **Ajo** — a digital rotating-savings (ajo) platform. Next.js
 
 ---
 
+## User Flow Video recording
+
+link: https://youtu.be/TKKkUZBGxls?si=bgwSOkAcPeZR-6TM
+
+---
+
 ## Getting started
 
 ```bash
