@@ -6,6 +6,12 @@ this with `ajo-server/README.md` (architecture) and `ajo-client/README.md`
 
 ---
 
+## 0. User Flow Video recording
+
+link: https://youtu.be/TKKkUZBGxls?si=bgwSOkAcPeZR-6TM
+
+---
+
 ## 1. Onboarding
 
 1. **Register** — email + password, or Google.
