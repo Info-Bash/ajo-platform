@@ -6,6 +6,12 @@ A full-stack digital Ajo (savings contribution) platform that allows users to cr
 
 This repository is a monorepo containing both the frontend client and backend API.
 
+## 0. User Flow Video recording
+
+link: https://youtu.be/TKKkUZBGxls?si=bgwSOkAcPeZR-6TM
+
+---
+
 ## Features
 
 - User authentication and authorization
